@@ -1,0 +1,40 @@
+# Codex runtime and private state
+config.toml
+config.toml.*
+auth.json
+cap_sid
+installation_id
+history.jsonl
+session_index.jsonl
+sandbox.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+local/
+sessions/
+archived_sessions/
+log/
+logs/
+tmp/
+.tmp/
+.sandbox/
+.sandbox-bin/
+.sandbox-secrets/
+plugins/
+vendor_imports/
+
+# Secrets and environment files
+.env
+.env.*
+*.local.json
+*token*
+*cookie*
+*secret*
+*credential*
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
