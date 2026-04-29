@@ -4,6 +4,12 @@
 
 ## 本目录文件
 
+- `rules/communication-rules.md`：协作与回复规则
+- `rules/coding-rules.md`：编码规则
+- `rules/testing-rules.md`：测试与验证规则
+- `rules/project-governance.md`：同步边界与治理规则
+- `rules/mcp-output-rules.md`：MCP 查询输出规则
+- `rules/requirements-and-prototype.md`：需求与原型规则
 - `common-rules.md`：Windows 和 Mac 都可复用的公共规则
 - `windows-config.md`：只适用于 Windows 的路径、脚本和本机状态说明
 - `mac-config.md`：Mac 需要单独创建或迁移的路径、脚本和本机状态说明
