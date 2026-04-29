@@ -6,17 +6,32 @@ This repository stores portable Codex agent guidance that can be shared between 
 
 ## Contents
 
+Global Codex rules:
+
 - `.codex/rules/communication-rules.md`: collaboration and response rules
 - `.codex/rules/coding-rules.md`: coding rules
 - `.codex/rules/testing-rules.md`: testing and verification rules
 - `.codex/rules/project-governance.md`: sync and governance rules
 - `.codex/rules/mcp-output-rules.md`: MCP result output rules
 - `.codex/rules/requirements-and-prototype.md`: requirements and prototype rules
+
+Cross-device notes:
+
 - `.codex/common-rules.md`: rules shared by Windows and macOS
 - `.codex/windows-config.md`: Windows-only paths and setup notes
 - `.codex/mac-config.md`: macOS-only paths and setup notes
 - `.codex/file-map.md`: file classification and migration map
 - `.codex/do-not-sync.md`: files and directories that must never be synced
+
+Project rules do not live in this global repository. Put them inside the target project:
+
+```text
+<project>/
+  AGENTS.md
+  .codex/
+    rules/
+      *.md
+```
 
 ## Security
 
