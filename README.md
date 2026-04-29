@@ -6,11 +6,11 @@ This repository stores portable Codex agent guidance that can be shared between 
 
 ## Contents
 
-- `codex-cross-device-sync/common-rules.md`: rules shared by Windows and macOS
-- `codex-cross-device-sync/windows-config.md`: Windows-only paths and setup notes
-- `codex-cross-device-sync/mac-config.md`: macOS-only paths and setup notes
-- `codex-cross-device-sync/file-map.md`: file classification and migration map
-- `codex-cross-device-sync/do-not-sync.md`: files and directories that must never be synced
+- `.codex/common-rules.md`: rules shared by Windows and macOS
+- `.codex/windows-config.md`: Windows-only paths and setup notes
+- `.codex/mac-config.md`: macOS-only paths and setup notes
+- `.codex/file-map.md`: file classification and migration map
+- `.codex/do-not-sync.md`: files and directories that must never be synced
 
 ## Security
 
