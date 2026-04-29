@@ -32,6 +32,11 @@ The Codex global entry file should live at `~/.codex/AGENTS.md` and reference:
 @rules/requirements-and-prototype.md
 ```
 
+Platform-specific `AGENTS.md` templates:
+
+- `.codex/windows/AGENTS.md`: copy to `%USERPROFILE%\.codex\AGENTS.md`
+- `.codex/mac/AGENTS.md`: copy to `~/.codex/AGENTS.md`
+
 Cross-device notes:
 
 - `.codex/common-rules.md`: rules shared by Windows and macOS

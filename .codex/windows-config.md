@@ -5,6 +5,8 @@
 ## Windows 路径模板
 
 - Codex 根目录：`%USERPROFILE%\.codex`
+- Codex 全局入口：`%USERPROFILE%\.codex\AGENTS.md`
+- Codex 全局规则：`%USERPROFILE%\.codex\rules\*.md`
 - 公共 memory 目录：`%USERPROFILE%\.codex\memories`
 - 本机私有配置目录：`%USERPROFILE%\.codex\local`
 - 本机脚本目录：`%USERPROFILE%\.codex\bin`
@@ -54,7 +56,8 @@ codex-sync/
 
 ## Windows 恢复口径
 
-- 公共规则恢复到：`%USERPROFILE%\.codex\memories`
+- `windows/AGENTS.md` 复制到：`%USERPROFILE%\.codex\AGENTS.md`
+- 公共规则恢复到：`%USERPROFILE%\.codex\rules`
 - Windows 专属 memory 恢复到：`%USERPROFILE%\.codex\memories`
 - Windows 专属脚本恢复到：`%USERPROFILE%\.codex\bin`
 - 私有配置重新创建到：`%USERPROFILE%\.codex\local`

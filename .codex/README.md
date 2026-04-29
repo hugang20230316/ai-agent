@@ -21,6 +21,13 @@
 
 Codex 全局入口文件放在 `~/.codex/AGENTS.md`，使用 `@rules/*.md` 引用实际生效路径下的规则文件。
 
+## AGENTS.md 模板
+
+- Windows 模板：`windows/AGENTS.md`
+- Mac 模板：`mac/AGENTS.md`
+
+模板可以上传到 GitHub；每台机器实际生效的 `~/.codex/AGENTS.md` 可以从对应模板复制生成。不要把带有本机绝对路径、账号、token 或项目路径的实际入口文件上传。
+
 ## 项目规则位置
 
 项目规则只放在目标项目仓库内：

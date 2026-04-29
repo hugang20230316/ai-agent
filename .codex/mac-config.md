@@ -5,6 +5,8 @@
 ## Mac 目标路径
 
 - Codex 根目录：`~/.codex`
+- Codex 全局入口：`~/.codex/AGENTS.md`
+- Codex 全局规则：`~/.codex/rules/*.md`
 - 公共 memory 目录：`~/.codex/memories`
 - 本机私有配置目录：`~/.codex/local`
 - 本机脚本目录：`~/.codex/bin`
@@ -30,6 +32,8 @@
 
 ## Mac 可直接复用
 
+- `mac/AGENTS.md`
+- `.codex/rules/*.md`
 - 公共外链预检规则
 - 公共同步边界规则
 - 不含机器路径、不含账号密码、不含 token 的 memory
