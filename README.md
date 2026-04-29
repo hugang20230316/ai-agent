@@ -21,7 +21,12 @@ On each machine, install these rule files into the Codex home rules directory:
 ~/.codex/rules/*.md
 ```
 
-The Codex global entry file should live at `~/.codex/AGENTS.md` and reference:
+Use one shared Codex global entry template:
+
+- `.codex/AGENTS.md`: copy to `%USERPROFILE%\.codex\AGENTS.md` on Windows or `~/.codex/AGENTS.md` on Mac
+- `.codex/AGENTS-mac.md`: Mac-only differences from the shared template
+
+The active Codex global entry file should reference:
 
 ```text
 @rules/communication-rules.md
@@ -31,11 +36,6 @@ The Codex global entry file should live at `~/.codex/AGENTS.md` and reference:
 @rules/mcp-output-rules.md
 @rules/requirements-and-prototype.md
 ```
-
-Platform-specific `AGENTS.md` templates:
-
-- `.codex/windows/AGENTS.md`: copy to `%USERPROFILE%\.codex\AGENTS.md`
-- `.codex/mac/AGENTS.md`: copy to `~/.codex/AGENTS.md`
 
 Cross-device notes:
 

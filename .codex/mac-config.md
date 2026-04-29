@@ -32,7 +32,8 @@
 
 ## Mac 可直接复用
 
-- `mac/AGENTS.md`
+- `.codex/AGENTS.md`
+- `.codex/AGENTS-mac.md`
 - `.codex/rules/*.md`
 - 公共外链预检规则
 - 公共同步边界规则

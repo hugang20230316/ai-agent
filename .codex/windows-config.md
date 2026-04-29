@@ -56,7 +56,7 @@ codex-sync/
 
 ## Windows 恢复口径
 
-- `windows/AGENTS.md` 复制到：`%USERPROFILE%\.codex\AGENTS.md`
+- `.codex/AGENTS.md` 复制到：`%USERPROFILE%\.codex\AGENTS.md`
 - 公共规则恢复到：`%USERPROFILE%\.codex\rules`
 - Windows 专属 memory 恢复到：`%USERPROFILE%\.codex\memories`
 - Windows 专属脚本恢复到：`%USERPROFILE%\.codex\bin`
