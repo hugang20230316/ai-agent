@@ -4,14 +4,22 @@
 
 ## 全局规则
 
-- `rules/communication-rules.md`：协作与回复规则
-- `rules/coding-rules.md`：编码规则
-- `rules/testing-rules.md`：测试与验证规则
-- `rules/project-governance.md`：同步边界与治理规则
-- `rules/mcp-output-rules.md`：MCP 查询输出规则
-- `rules/requirements-and-prototype.md`：需求与原型规则
+- 同步仓库内路径：`.codex/rules/*.md`
+- Windows 实际生效路径：`%USERPROFILE%\.codex\rules\*.md`
+- Mac 实际生效路径：`~/.codex/rules/*.md`
+
+规则文件：
+
+- `communication-rules.md`：协作与回复规则
+- `coding-rules.md`：编码规则
+- `testing-rules.md`：测试与验证规则
+- `project-governance.md`：同步边界与治理规则
+- `mcp-output-rules.md`：MCP 查询输出规则
+- `requirements-and-prototype.md`：需求与原型规则
 
 这些文件是个人 Codex 全局基线，适合跨项目、跨 Windows / Mac 共用。不要在这里写项目名、业务表、内部环境、发布链路、测试账号或项目专属构建例外。
+
+Codex 全局入口文件放在 `~/.codex/AGENTS.md`，使用 `@rules/*.md` 引用实际生效路径下的规则文件。
 
 ## 项目规则位置
 

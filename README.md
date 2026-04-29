@@ -15,6 +15,23 @@ Global Codex rules:
 - `.codex/rules/mcp-output-rules.md`: MCP result output rules
 - `.codex/rules/requirements-and-prototype.md`: requirements and prototype rules
 
+On each machine, install these rule files into the Codex home rules directory:
+
+```text
+~/.codex/rules/*.md
+```
+
+The Codex global entry file should live at `~/.codex/AGENTS.md` and reference:
+
+```text
+@rules/communication-rules.md
+@rules/coding-rules.md
+@rules/testing-rules.md
+@rules/project-governance.md
+@rules/mcp-output-rules.md
+@rules/requirements-and-prototype.md
+```
+
 Cross-device notes:
 
 - `.codex/common-rules.md`: rules shared by Windows and macOS

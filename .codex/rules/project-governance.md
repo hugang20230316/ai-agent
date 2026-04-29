@@ -1,7 +1,8 @@
 # Codex 项目治理规则
 
 - 公共同步仓库只保存通用规则、说明和无敏感信息的 memory。
-- 个人 `ai-agent/.codex/rules/` 只放全局规则；项目规则只放目标项目仓库的 `AGENTS.md` 和 `.codex/rules/`。
+- 个人全局规则的实际生效位置是 `~/.codex/rules/*.md`；公开同步仓库只保存这些规则的可迁移副本。
+- 项目规则只放目标项目仓库的 `AGENTS.md` 和 `.codex/rules/`。
 - 未经用户明确点名，不要读取、复制、修改或上传公司项目仓库内的项目规则。
 - `config.toml` 是 Codex CLI 本机配置，不同步，不放入公开仓库。
 - `.codex/local/` 保存本机私有配置，不同步。
