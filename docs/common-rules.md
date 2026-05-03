@@ -1,6 +1,6 @@
 # Codex 公共规则
 
-这些规则可以在 Windows 和 Mac 共用。若某条规则需要具体路径、脚本名、浏览器 profile、会话文件或平台命令，把细节放到对应的平台配置文件中。
+这些规则可以在 Windows 和 Mac 共用。若某条规则需要具体路径、脚本名、浏览器 profile、会话文件或平台命令，把细节放到本机私有配置、环境变量或跨平台脚本的运行时检测中。
 
 ## 同步边界
 
@@ -13,7 +13,7 @@
 
 - 公共规则只描述行为，不写机器路径
 - 需要引用路径时，公共规则只写“从当前机器本地配置读取”
-- 需要引用平台脚本时，公共规则只写脚本用途；脚本具体路径放到 `config-windows.md` 或 `config-mac.md`
+- 需要引用平台脚本时，公共规则只写脚本用途；脚本具体路径放到本机私有配置
 - 需要引用环境配置时，公共规则只写配置键名；真实值放到 `.codex/local/*.local.json`
 
 ## 外部链接访问
@@ -29,8 +29,8 @@
 - 本机私有配置可以保存测试地址、Swagger 地址、凭据路径、浏览器状态路径和工具路径
 - `.codex/local` 的文件不得进入共享仓库
 
-## 平台配置
+## 平台差异
 
-- Windows 专属内容放入 `config-windows.md`
-- Mac 专属内容放入 `config-mac.md`
+- 同步仓库不维护 `AGENTS-mac.md`、`AGENTS-windows.md`、`SKILL-mac.md`、`SKILL-windows.md` 或分平台配置说明
 - 公共规则不得混入 `PowerShell`、`pwsh`、`zsh`、`.ps1`、`.sh`、盘符路径或 `$HOME` / `%USERPROFILE%` 这类平台细节
+- 需要平台差异时，优先通过 Python 标准库、用户 home 路径解析、环境变量或 local config 自动适配

@@ -26,6 +26,7 @@
 - `~/.codex/auth.json`
 - `~/.codex/cap_sid`
 - `~/.codex/installation_id`
+- `~/.codex/shell_snapshots/`
 - `~/.codex/sessions/`
 - `~/.codex/archived_sessions/`
 - `~/.codex/session_index.jsonl`
@@ -52,6 +53,9 @@
 - `~/.codex/.sandbox-secrets/`
 - `~/.codex/plugins/`
 - `~/.codex/vendor_imports/`
+- `~/.codex/mcp_venvs/`
+- `~/.codex/mcp_servers/`
+- `~/.codex/skills/`
 
 原因：缓存、运行时产物或平台专属依赖，应由本机重建。
 
@@ -59,6 +63,7 @@
 
 - 任何公司项目仓库路径
 - 任何内网 IP、内部域名、测试账号、发布 token、缺陷平台会话
+- `~/.codex/memories/`
 - `~/.codex/memories/<company-project>-*.md`
 - `~/.codex/memories/<defect-platform>_auth.py`
 - `~/.codex/memories/<defect-platform>_auth_state.json`

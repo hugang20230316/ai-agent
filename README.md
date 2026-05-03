@@ -8,12 +8,13 @@ This repository stores portable Codex agent guidance that can be shared between 
 
 Global Codex rules:
 
-- `.codex/rules/communication-rules.md`: collaboration and response rules
-- `.codex/rules/coding-rules.md`: coding rules
-- `.codex/rules/testing-rules.md`: testing and verification rules
-- `.codex/rules/project-governance.md`: sync and governance rules
-- `.codex/rules/mcp-output-rules.md`: MCP result output rules
-- `.codex/rules/requirements-and-prototype.md`: requirements and prototype rules
+- `rules/communication-rules.md`: collaboration and response rules
+- `rules/coding-rules.md`: coding rules
+- `rules/testing-rules.md`: testing and verification rules
+- `rules/openclaw-rules.md`: OpenClaw troubleshooting rules
+- `rules/project-governance.md`: sync and governance rules
+- `rules/mcp-output-rules.md`: MCP result output rules
+- `rules/requirements-and-prototype.md`: requirements and prototype rules
 
 On each machine, install these rule files into the Codex home rules directory:
 
@@ -23,8 +24,9 @@ On each machine, install these rule files into the Codex home rules directory:
 
 Use one shared Codex global entry template:
 
-- `.codex/AGENTS.md`: copy to `%USERPROFILE%\.codex\AGENTS.md` on Windows or `~/.codex/AGENTS.md` on Mac
-- `.codex/AGENTS-mac.md`: Mac-only differences from the shared template
+- `AGENTS.md`: copy to `%USERPROFILE%\.codex\AGENTS.md` on Windows or `~/.codex/AGENTS.md` on Mac
+
+Do not maintain public per-platform global entry templates. Platform differences belong in local private configuration, environment variables, or cross-platform scripts that detect the host at runtime.
 
 The active Codex global entry file should reference:
 
@@ -32,6 +34,7 @@ The active Codex global entry file should reference:
 @rules/communication-rules.md
 @rules/coding-rules.md
 @rules/testing-rules.md
+@rules/openclaw-rules.md
 @rules/project-governance.md
 @rules/mcp-output-rules.md
 @rules/requirements-and-prototype.md
@@ -39,11 +42,9 @@ The active Codex global entry file should reference:
 
 Cross-device notes:
 
-- `.codex/common-rules.md`: rules shared by Windows and macOS
-- `.codex/config-windows.md`: Windows-only paths and setup notes
-- `.codex/config-mac.md`: macOS-only paths and setup notes
-- `.codex/file-map.md`: file classification and migration map
-- `.codex/do-not-sync.md`: files and directories that must never be synced
+- `docs/common-rules.md`: rules shared by Windows and macOS
+- `docs/file-map.md`: file classification and migration map
+- `docs/do-not-sync.md`: files and directories that must never be synced
 
 Project rules do not live in this global repository. Put them inside the target project:
 

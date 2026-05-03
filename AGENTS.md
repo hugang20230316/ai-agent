@@ -10,6 +10,7 @@
 @rules/communication-rules.md
 @rules/coding-rules.md
 @rules/testing-rules.md
+@rules/openclaw-rules.md
 @rules/project-governance.md
 @rules/mcp-output-rules.md
 @rules/requirements-and-prototype.md
@@ -21,4 +22,4 @@
 - `config.toml`、`local/`、会话、日志、缓存和凭据都是本机私有配置，不同步。
 - 项目规则只放在目标项目自己的 `AGENTS.md` 和 `.codex/rules/`。
 - 未经用户明确点名授权，不要读取、修改、复制或上传公司项目仓库内的规则文件。
-- 平台差异不要复制一整份入口文件；Mac 差异写在同步仓库的 `.codex/AGENTS-mac.md`。
+- 平台差异只允许存在于本机私有配置、环境变量或工具自动检测中，不进入同步规则仓库。
