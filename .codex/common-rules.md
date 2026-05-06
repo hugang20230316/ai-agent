@@ -13,7 +13,7 @@
 
 - 公共规则只描述行为，不写机器路径
 - 需要引用路径时，公共规则只写“从当前机器本地配置读取”
-- 需要引用平台脚本时，公共规则只写脚本用途；脚本具体路径放到 `windows-config.md` 或 `mac-config.md`
+- 需要引用平台脚本时，公共规则只写脚本用途；脚本具体路径放到 `config-windows.md` 或 `config-mac.md`
 - 需要引用环境配置时，公共规则只写配置键名；真实值放到 `.codex/local/*.local.json`
 
 ## 外部链接访问
@@ -31,6 +31,6 @@
 
 ## 平台配置
 
-- Windows 专属内容放入 `windows-config.md`
-- Mac 专属内容放入 `mac-config.md`
+- Windows 专属内容放入 `config-windows.md`
+- Mac 专属内容放入 `config-mac.md`
 - 公共规则不得混入 `PowerShell`、`pwsh`、`zsh`、`.ps1`、`.sh`、盘符路径或 `$HOME` / `%USERPROFILE%` 这类平台细节

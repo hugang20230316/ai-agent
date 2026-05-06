@@ -56,9 +56,9 @@ codex-sync/
     common-rules.md
     external-link-preflight.md
   windows/
-    windows-config.md
+    config-windows.md
   mac/
-    mac-config.md
+    config-mac.md
     lanhu-login-reuse.mac.md
     bin/
       lanhu-open.sh

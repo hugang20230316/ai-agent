@@ -46,12 +46,12 @@ codex-sync/
     common-rules.md
     external-link-preflight.md
   windows/
-    windows-config.md
+    config-windows.md
     lanhu-login-reuse.windows.md
     bin/
       lanhu-open.ps1
   mac/
-    mac-config.md
+    config-mac.md
 ```
 
 ## Windows 恢复口径

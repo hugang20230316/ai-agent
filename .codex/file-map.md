@@ -2,38 +2,61 @@
 
 以下路径使用通用模板表示。只整理 Codex 相关内容，不包含公司项目仓库。
 
-## 公共可同步
+## 当前本机生效路径
 
-- `%USERPROFILE%\.codex\memories\external-link-preflight.md`
+- `%USERPROFILE%\.codex\AGENTS.md`
+  - Codex 全局入口
+  - 当前机器实际生效文件
+- `%USERPROFILE%\.codex\rules\*.md`
+  - Codex 全局规则
+  - 当前机器实际生效规则目录
+- `%USERPROFILE%\.codex\rules\default.rules`
+  - 命令审批历史
+  - 本机私有，不同步
+
+## GitHub 同步仓库路径
+
+- `%USERPROFILE%\.codex\ai-agent\.codex\AGENTS.md`
   - 可同步
-  - 内容不依赖具体系统路径
-- `%USERPROFILE%\.codex\memories\codex-cross-device-sync\README.md`
+  - Windows / Mac 共用的 Codex 全局入口模板
+- `%USERPROFILE%\.codex\ai-agent\.codex\AGENTS-mac.md`
   - 可同步
-- `%USERPROFILE%\.codex\memories\codex-cross-device-sync\common-rules.md`
+  - Mac 相对共用入口的差异说明
+- `%USERPROFILE%\.codex\ai-agent\.codex\rules\*.md`
   - 可同步
-- `%USERPROFILE%\.codex\memories\codex-cross-device-sync\file-map.md`
+  - Windows / Mac 共用的 Codex 全局规则模板
+- `%USERPROFILE%\.codex\ai-agent\.codex\common-rules.md`
   - 可同步
-- `%USERPROFILE%\.codex\memories\codex-cross-device-sync\do-not-sync.md`
+  - 跨平台公共约定
+- `%USERPROFILE%\.codex\ai-agent\.codex\config-windows.md`
   - 可同步
+  - Windows 专属路径和配置说明
+- `%USERPROFILE%\.codex\ai-agent\.codex\config-mac.md`
+  - 可同步
+  - Mac 专属路径和配置说明
+- `%USERPROFILE%\.codex\ai-agent\.codex\do-not-sync.md`
+  - 可同步
+  - 不同步清单
+- `%USERPROFILE%\.codex\ai-agent\.codex\file-map.md`
+  - 可同步
+  - 本文件
 
 ## Windows 专属
 
-- `%USERPROFILE%\.codex\memories\lanhu-login-reuse.md`
-  - Windows 专属
-  - 含 Windows 状态文件路径和 `.ps1` 脚本路径
-- `%USERPROFILE%\.codex\bin\lanhu-open.ps1`
-  - Windows 专属
-  - 只放 Windows 同步目录
-- `%USERPROFILE%\.codex\memories\codex-cross-device-sync\windows-config.md`
+- `%USERPROFILE%\.codex\AGENTS.md`
+  - 从同步仓库 `.codex\AGENTS.md` 复制生成
+- `%USERPROFILE%\.codex\rules\*.md`
+  - 从同步仓库 `.codex\rules\*.md` 复制生成
+- `%USERPROFILE%\.codex\ai-agent\.codex\config-windows.md`
   - Windows 专属说明
 
 ## Mac 专属
 
-- `~/.codex/memories/lanhu-login-reuse.mac.md`
-  - Mac 上单独创建
-- `~/.codex/bin/lanhu-open.sh`
-  - Mac 上单独创建
-- `~/.codex/memories/codex-cross-device-sync/mac-config.md`
+- `~/.codex/AGENTS.md`
+  - 从同步仓库 `.codex/AGENTS.md` 复制生成
+- `~/.codex/rules/*.md`
+  - 从同步仓库 `.codex/rules/*.md` 复制生成
+- `~/.codex/ai-agent/.codex/config-mac.md`
   - Mac 专属说明
 
 ## 本机私有，不同步
@@ -69,4 +92,13 @@
   - 不进入公共同步包
 - `%USERPROFILE%\.codex\memories\<defect-platform>_auth_state.json`
   - 登录状态或认证信息
+  - 不同步
+- `<project>\.claude\`
+  - Claude 本地 MCP、settings、logs、node_modules 和报告
+  - 不进入公开项目规则模板
+- `<project>\.codex\local\`
+  - 项目本机私有配置和任务状态
+  - 不同步
+- `<project>\scripts\publish\config.env*`
+  - 发布配置、token 或环境变量
   - 不同步

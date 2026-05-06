@@ -40,8 +40,8 @@ The active Codex global entry file should reference:
 Cross-device notes:
 
 - `.codex/common-rules.md`: rules shared by Windows and macOS
-- `.codex/windows-config.md`: Windows-only paths and setup notes
-- `.codex/mac-config.md`: macOS-only paths and setup notes
+- `.codex/config-windows.md`: Windows-only paths and setup notes
+- `.codex/config-mac.md`: macOS-only paths and setup notes
 - `.codex/file-map.md`: file classification and migration map
 - `.codex/do-not-sync.md`: files and directories that must never be synced
 

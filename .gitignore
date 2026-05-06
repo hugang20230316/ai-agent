@@ -23,6 +23,13 @@ tmp/
 .sandbox-secrets/
 plugins/
 vendor_imports/
+node_modules/
+artifacts/
+**/.claude/
+**/.codex/local/
+**/.codex/.dotnet/
+**/.codex/tmp*.png
+**/.codex/rules/examples/
 
 # Secrets and environment files
 .env
@@ -32,6 +39,8 @@ vendor_imports/
 *cookie*
 *secret*
 *credential*
+scripts/publish/config.env
+scripts/publish/config.env.local
 
 # OS/editor noise
 .DS_Store
