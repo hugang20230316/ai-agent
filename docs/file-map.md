@@ -55,8 +55,7 @@
 - `<codex-home>/mcp_servers/`
 - `<codex-home>/skills/`
 - `<codex-home>/memories/`
-- `<codex-home>/AGENTS-mac.md`
-- `<codex-home>/AGENTS-windows.md`
+- `<codex-home>/local/`
 
 ## 需要剔除或重写
 
