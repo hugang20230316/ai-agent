@@ -31,6 +31,6 @@
 
 ## 平台差异
 
-- 同步仓库不维护 `AGENTS-mac.md`、`AGENTS-windows.md`、`SKILL-mac.md`、`SKILL-windows.md` 或分平台配置说明
-- 公共规则不得混入 `PowerShell`、`pwsh`、`zsh`、`.ps1`、`.sh`、盘符路径或 `$HOME` / `%USERPROFILE%` 这类平台细节
+- 同步仓库不维护分平台入口、分平台技能说明或分平台配置说明
+- 公共规则不得混入平台专用 shell、平台专用脚本扩展、盘符路径或 home 环境变量写法这类平台细节
 - 需要平台差异时，优先通过 Python 标准库、用户 home 路径解析、环境变量或 local config 自动适配
