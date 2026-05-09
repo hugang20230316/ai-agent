@@ -10,14 +10,15 @@
 - `rules/*.md`
   - 可同步
   - 仅包含个人通用规则；排除 `<codex-home>/rules/default.rules`
-- `docs/common-rules.md`
-  - 可同步
 - `docs/codex-sync.md`
   - 可同步
+  - 同步布局和安装说明，不参与规则加载
 - `docs/file-map.md`
   - 可同步
+  - 文件分类说明，不参与规则加载
 - `docs/do-not-sync.md`
   - 可同步
+  - 禁止同步清单，不参与规则加载
 - `README.md`
   - 可同步
 - `.gitignore`
@@ -27,6 +28,7 @@
 
 - 不在同步仓库中维护分平台公共入口、分平台规则文件或分平台配置说明。
 - 平台差异通过本机私有配置、环境变量、用户 home 路径解析或跨平台脚本运行时检测处理。
+- `docs/` 目录不承载平台差异规则；需要约束行为时写入 `rules/*.md`，需要记录同步说明时写入 `docs/*.md`。
 
 ## 本机私有，不同步
 
