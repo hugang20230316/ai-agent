@@ -16,7 +16,7 @@
 - 不读取 `.env`、`config.yaml` 原文、sessions、memories、token、cookie 或日志全文。
 - 不真实发送外部平台消息。
 - 不长期启动 gateway、dashboard、MCP server 或 cron worker。
-- 临时输出只放系统临时目录；最终报告写入 `/Users/hugang/ai-agent/docs/reports/`。
+- 临时输出只放系统临时目录；最终报告写入本仓库 `docs/reports/`。
 - 输出命令结果时只摘关键行；敏感字段必须脱敏或省略。
 
 ## 任务 1：基线与命令面审计
@@ -25,15 +25,15 @@
 
 **Files:**
 
-- Read: `/Users/hugang/.hermes/SOUL.md`
-- Read: `/Users/hugang/.hermes/hermes-agent/README.md`
-- Read: `/Users/hugang/.hermes/hermes-agent/README.zh-CN.md`
+- Read: `$HERMES_HOME/SOUL.md`
+- Read: `$HERMES_HOME/hermes-agent/README.md`
+- Read: `$HERMES_HOME/hermes-agent/README.zh-CN.md`
 - No write.
 
 **Steps:**
 
 1. 运行只读命令：`command -v hermes`、`which -a hermes`、`hermes --version`、`hermes --help`。
-2. 检查 Hermes 项目 git 状态：`git -C /Users/hugang/.hermes/hermes-agent status --short`。
+2. 检查 Hermes 项目 git 状态：`git -C "$HERMES_HOME/hermes-agent" status --short`。
 3. 汇总 CLI 子命令面：从 `hermes --help` 摘要出主要能力分类。
 4. 输出基线结论：安装路径、版本、上游落后提示、当前工作区是否有未提交改动、命令面是否完整。
 
@@ -45,10 +45,10 @@
 
 **Files:**
 
-- Read: `/Users/hugang/.hermes/SOUL.md`
-- Read: `/Users/hugang/.hermes/AGENTS.md`
-- Read: `/Users/hugang/ai-agent/AGENTS.md`
-- Read: `/Users/hugang/ai-agent/rules/*.md`
+- Read: `$HERMES_HOME/SOUL.md`
+- Read: `$HERMES_HOME/AGENTS.md`
+- Read: 本仓库 `AGENTS.md`
+- Read: 本仓库 `rules/*.md`
 - No write.
 
 **Steps:**
@@ -104,7 +104,7 @@
 
 **Files:**
 
-- Create: `/Users/hugang/ai-agent/docs/reports/2026-05-17-hermes-capability-evolution-check-report.md`
+- Create: `docs/reports/2026-05-17-hermes-capability-evolution-check-report.md`
 
 **Steps:**
 
