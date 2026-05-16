@@ -10,6 +10,9 @@ sandbox.log
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.pyc
+__pycache__/
+**/__pycache__/
 
 local/
 sessions/
@@ -33,7 +36,6 @@ artifacts/
 **/.codex/rules/examples/
 mcp_venvs/
 mcp_servers/
-skills/
 memories/
 .personality_migration
 rules/default.rules

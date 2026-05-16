@@ -57,7 +57,7 @@
 - `~/.codex/mcp_servers/`
 - `~/.codex/skills/`
 
-原因：缓存、运行时产物或平台专属依赖，应由本机重建。
+原因：缓存、运行时产物或平台专属依赖，应由本机重建。明确托管的单个 skill 可以软链接到 `ai-agent/skills/<skill-name>`，但不要同步整个 `~/.codex/skills/`。
 
 ## 公司项目和内部环境
 
@@ -68,4 +68,4 @@
 - `~/.codex/memories/<defect-platform>_auth.py`
 - `~/.codex/memories/<defect-platform>_auth_state.json`
 
-原因：与个人跨设备 Codex 规则无关，且可能包含公司环境或认证信息。
+原因：与个人跨设备 Agent 规则无关，且可能包含公司环境或认证信息。

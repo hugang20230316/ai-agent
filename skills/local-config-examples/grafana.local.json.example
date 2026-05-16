@@ -1,0 +1,23 @@
+{
+  "baseUrl": "https://grafana.example.com",
+  "localStateDir": "~/.grafana-skill",
+  "browserSession": "grafana-local",
+  "browserMaxOutput": 12000,
+  "dashboardUid": "replace-with-dashboard-uid",
+  "dashboardSlug": "logs",
+  "defaultNamespace": "default",
+  "apiApp": "app-api",
+  "backgroundApp": "app-backgroundtasks",
+  "servicesApp": "app-services",
+  "saveWorkRoutePattern": "/api/work/save",
+  "defaultApps": [
+    "app-api",
+    "app-worker"
+  ],
+  "repoRoot": "<path-to-repo>",
+  "codeMapPaths": [
+    "README.md",
+    "AGENTS.md",
+    "src"
+  ]
+}

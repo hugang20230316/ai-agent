@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bug 排查修复"
+  short_description: "读取缺陷、截图、接口响应或复现说明后，结合代码与数据执行排查和修复"
+  default_prompt: "Use $bug to read a bug ID, URL, screenshot, response, or reproduction note, then combine code and data evidence to locate the issue and fix it."

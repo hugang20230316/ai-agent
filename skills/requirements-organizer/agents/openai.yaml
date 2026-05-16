@@ -1,0 +1,4 @@
+interface:
+  display_name: "需求整理"
+  short_description: "根据链接地址、页面截图和标注信息整理模块详细需求文档"
+  default_prompt: "使用 $requirements-organizer 根据链接地址和截图整理指定模块的详细需求文档。"

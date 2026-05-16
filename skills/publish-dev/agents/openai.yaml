@@ -1,0 +1,4 @@
+interface:
+  display_name: "开发发布"
+  short_description: "按本机 local config 计算 release tag、复用在途发布，并通过 Git provider 与 Argo CD API 发布配置中的应用。"
+  default_prompt: "Use $publish-dev, run the unified Python entry point, calculate or reuse the configured release tag, avoid duplicate in-flight publishes, and publish the configured development apps through the configured APIs."

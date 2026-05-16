@@ -1,0 +1,4 @@
+interface:
+  display_name: "Grafana"
+  short_description: "Read-only Grafana queries with local session reuse"
+  default_prompt: "Use $grafana, run the unified Python entry point, inspect Grafana read-only, and explain the related project call chain before raw evidence."

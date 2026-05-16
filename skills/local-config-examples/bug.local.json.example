@@ -1,0 +1,13 @@
+{
+  "zentaoBaseUrl": "https://zentao.example.com/zentao",
+  "usernameSource": "env:ZENTAO_USERNAME",
+  "passwordSource": "env:ZENTAO_PASSWORD",
+  "browserSession": "issue-tracker-local",
+  "downloadDir": "<repo>/artifacts/issues",
+  "swaggerJsonUrl": "https://api.example.com/swagger/v1/swagger.json",
+  "testApiBaseUrl": "https://api.example.com",
+  "loginEndpoint": "/api/login",
+  "portalTicketUrl": "https://internal.example.com/ticket",
+  "repoRoot": "<path-to-repo>",
+  "tempDir": "<temp-dir>"
+}

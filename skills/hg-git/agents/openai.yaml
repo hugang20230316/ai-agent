@@ -1,0 +1,7 @@
+interface:
+  display_name: "HG Git"
+  short_description: "Maintain personal GitHub repos and private data safely"
+  default_prompt: "Use $hg-git to inspect, synchronize, pull, commit, and push my personal GitHub repositories, including private-data helper workflows when configured."
+
+policy:
+  allow_implicit_invocation: true

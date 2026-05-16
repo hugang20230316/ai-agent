@@ -1,0 +1,5 @@
+{
+  "browserSession": "prototype-local",
+  "screenshotDir": "<repo>/artifacts/prototypes",
+  "defaultOutputDir": "<repo>/docs/requirements"
+}

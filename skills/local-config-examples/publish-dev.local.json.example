@@ -1,0 +1,27 @@
+{
+  "repoPath": "<path-to-repo>",
+  "repoDirectoryName": "project-repo",
+  "repoMarkers": [
+    "src"
+  ],
+  "gitlabConfigPath": "<repo>/scripts/publish/config.env.local",
+  "gitlabBaseUrl": "https://git.example.com",
+  "gitlabProjectId": "123",
+  "gitlabToken": "env:GITLAB_TOKEN",
+  "argocdBaseUrl": "https://argocd.example.com",
+  "argocdProject": "project-dev",
+  "argocdUsername": "env:ARGOCD_USERNAME",
+  "argocdPasswordSource": "env:ARGOCD_PASSWORD",
+  "publishStateDir": "~/.codex/memories/publish-dev",
+  "argocdSessionPath": "~/.codex/memories/publish-dev/argocd-session.json",
+  "releaseTagPattern": "^v0\\.0\\.\\d+$",
+  "allAppsNameFilter": "project",
+  "defaultApps": [
+    "app-api-dev",
+    "app-services-dev"
+  ],
+  "componentAppMap": {
+    "api": "app-api-dev",
+    "services": "app-services-dev"
+  }
+}

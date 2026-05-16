@@ -1,0 +1,32 @@
+{
+  "host": "grafana.example.com",
+  "sessionName": "grafana-local",
+  "maxOutput": 12000,
+  "allowedCommands": [
+    "open",
+    "back",
+    "forward",
+    "reload",
+    "snapshot",
+    "get",
+    "find",
+    "click",
+    "fill",
+    "type",
+    "press",
+    "scroll",
+    "wait",
+    "close",
+    "cookies"
+  ],
+  "allowedOpenPathPrefixes": [
+    "/",
+    "/login",
+    "/d",
+    "/d-solo",
+    "/dashboards",
+    "/explore",
+    "/goto"
+  ],
+  "readOnly": true
+}
