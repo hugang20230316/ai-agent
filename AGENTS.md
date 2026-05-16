@@ -9,7 +9,7 @@
 - OpenClaw：`~/.openclaw/workspace/AGENTS.md`
 - Hermes：`$HERMES_HOME/AGENTS.md`，由 `$HERMES_HOME/SOUL.md` 要求读取
 
-本文件只引用个人通用规则；不引用任何工具的本机私有配置，也不引用项目仓库规则。
+本文件只引用个人通用规则和少量工具专属边界；不引用任何工具的本机私有配置，也不引用项目仓库规则。
 
 @rules/communication-rules.md
 @rules/security-and-privacy-rules.md
@@ -18,6 +18,7 @@
 @rules/testing-rules.md
 @rules/skill-rules.md
 @rules/openclaw-rules.md
+@rules/hermes-rules.md
 @rules/project-governance.md
 @rules/mcp-output-rules.md
 @rules/requirements-and-prototype.md
@@ -32,6 +33,7 @@
 - 涉及测试、验证、修复完成声明、回归检查或质量结论时，读取 `@rules/testing-rules.md`。
 - 用户点名 skill、插件或任务语义命中某个 skill 时，必须同时按 `@rules/skill-rules.md` 执行触发、加载、推荐筛选和修改边界规则。
 - 涉及 OpenClaw 配置、SOUL、workspace、skills 或 OpenClaw 运行行为时，读取 `@rules/openclaw-rules.md`。
+- 涉及 Hermes 配置、SOUL、AGENTS、rules、skills、CLI、Dashboard、Gateway、MCP、cron 或 Hermes 运行行为时，读取 `@rules/hermes-rules.md`。
 - 涉及个人规则仓库、项目规则分层、同步设计、文件归类或规则沉淀时，读取 `@rules/project-governance.md`。
 - 涉及 MCP、工具输出、命令结果整理、日志或长输出摘要时，读取 `@rules/mcp-output-rules.md`。
 - 涉及需求、原型、PRD、验收标准、页面交互或产品说明时，读取 `@rules/requirements-and-prototype.md`。
