@@ -23,6 +23,9 @@
 - `docs/symlink-design.md`
   - 可同步
   - 规则和 skill 软链接设计，不参与规则加载
+- `docs/superpowers/specs/*.md`
+  - 可同步
+  - 已确认的方案设计，不参与规则加载
 - `README.md`
   - 可同步
 - `.gitignore`

@@ -42,6 +42,7 @@ Shared rules:
 - `rules/project-governance.md`: project and personal-rule governance rules
 - `rules/mcp-output-rules.md`: MCP result output rules
 - `rules/requirements-and-prototype.md`: requirements and prototype rules
+- `rules/personal-knowledge-rules.md`: Obsidian and personal knowledge capture rules
 
 On each machine, expose these rule files to each agent by per-file symlink:
 
@@ -75,6 +76,7 @@ Cross-device notes:
 - `docs/file-map.md`: file classification and migration map
 - `docs/do-not-sync.md`: files and directories that must never be synced
 - `docs/symlink-design.md`: rule and skill symlink design
+- `docs/superpowers/specs/2026-05-17-codex-obsidian-personal-log-design.md`: Codex and Obsidian personal knowledge design
 
 Project rules do not live in this global repository. Put them inside the target project:
 

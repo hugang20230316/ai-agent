@@ -23,6 +23,7 @@
 @rules/mcp-output-rules.md
 @rules/research-rules.md
 @rules/requirements-and-prototype.md
+@rules/personal-knowledge-rules.md
 
 ## 强制规则加载
 
@@ -39,6 +40,7 @@
 - 涉及 MCP、工具输出、命令结果整理、日志或长输出摘要时，读取 `@rules/mcp-output-rules.md`。
 - 涉及找资料、找方案、主流方案、推荐、选型、竞品/同类对比、技术调研、市场调研、资料综述或需要判断“什么更主流/更合适”时，读取 `@rules/research-rules.md`。
 - 涉及需求、原型、PRD、验收标准、页面交互或产品说明时，读取 `@rules/requirements-and-prototype.md`。
+- 涉及记录、总结、沉淀、复盘、写入 Obsidian、个人日志、知识库、规则候选或 skill 候选时，读取 `@rules/personal-knowledge-rules.md`。
 - 如果任务涉及图表、流程、架构、部署、模块关系或方案说明，必须同时按 `@rules/markdown-rules.md` 的图表风格要求设计图表；不能只放一张默认样式 Mermaid 图敷衍复杂主题。
 - Markdown 文档任务完成前，必须至少内部检查代码围栏是否闭合、Mermaid 语法是否使用保守写法、图表数量是否覆盖关键概念。只有复杂 Markdown 文档、含图表/代码围栏/渲染兼容风险的交付，或检查发现异常、跳过项时，才在最终答复里说明 Markdown 检查结果；纯规则条目、短列表、轻量文案修改不单独报告检查过程。
 

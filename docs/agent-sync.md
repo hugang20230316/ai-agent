@@ -24,6 +24,7 @@
 - `project-governance.md`：同步边界与治理规则
 - `mcp-output-rules.md`：MCP 查询输出规则
 - `requirements-and-prototype.md`：需求与原型规则
+- `personal-knowledge-rules.md`：Obsidian 与个人知识库沉淀规则
 
 这些文件是个人 Agent 全局基线，适合跨项目、跨 Windows / Mac 共用。不要在这里写项目名、业务表、内部环境、发布链路、测试账号或项目专属构建例外。
 
@@ -61,6 +62,7 @@
 - `docs/file-map.md`：当前机器上的具体文件路径和同步分类
 - `docs/do-not-sync.md`：明确禁止同步的本机配置、密钥、缓存和运行态文件
 - `docs/symlink-design.md`：规则和 skill 的软链接设计
+- `docs/superpowers/specs/2026-05-17-codex-obsidian-personal-log-design.md`：Codex 与 Obsidian 个人知识库设计
 
 说明文档可以解释为什么同步、怎么安装、哪些文件不能同步，但不能新增 Agent 行为规则。需要新增行为规则时，必须放入 `rules/*.md` 并由 `AGENTS.md` 引用。
 
