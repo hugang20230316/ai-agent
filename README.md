@@ -44,6 +44,15 @@ Shared rules:
 - `rules/requirements-and-prototype.md`: requirements and prototype rules
 - `rules/personal-knowledge-rules.md`: Obsidian and personal knowledge capture rules
 
+Shared custom skills:
+
+- `skills/bug/`
+- `skills/grafana/`
+- `skills/hg-git/`
+- `skills/personal-knowledge/`
+- `skills/publish-dev/`
+- `skills/requirements-organizer/`
+
 On each machine, expose these rule files to each agent by per-file symlink:
 
 ```text

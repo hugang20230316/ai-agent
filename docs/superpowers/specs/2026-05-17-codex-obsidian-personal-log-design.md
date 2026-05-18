@@ -170,6 +170,7 @@ Obsidian 和 GitHub 的边界：
 - Obsidian 保存候选、复盘、知识索引。
 - `rules/*.md` 保存会直接影响 agent 行为的通用规则。
 - `skills/<name>/` 保存明确可复用的操作能力。
+- 知识库相关能力只维护一个 `skills/personal-knowledge/`。候选生成、候选写入、审批、Daily 索引和升级规则都作为这个 skill 的子功能。
 - `docs/*.md` 只解释同步、设计和迁移，不参与 agent 规则加载。
 
 候选升级成规则或 skill 前，需要人工判断：
@@ -182,6 +183,8 @@ Obsidian 和 GitHub 的边界：
 ## 自动化边界
 
 默认不修改 Codex 私有配置，不直接启用 hooks，也不读取历史会话做回填。
+
+候选生成、候选写入、审批、Daily 索引和升级规则都收敛到 `personal-knowledge` skill 内，不再拆分多个知识库 skill。
 
 后续如果启用自动写入，应满足：
 
@@ -201,7 +204,8 @@ Obsidian 和 GitHub 的边界：
 
 ## 启用顺序
 
-1. 用户要求沉淀时，由 agent 生成候选摘要，人工确认后写入 Obsidian。
-2. 在任务完成、compact 前、方案确认后，agent 可以主动给出候选摘要。
-3. 确认 Obsidian Local REST API 和 MCP 可用后，再启用候选写入。
-4. 对 approved 条目做人工评审，少量迁移到 `rules/` 或 `skills/`。
+1. 维护一个 `personal-knowledge` skill，先支持候选摘要和人工确认。
+2. 用户要求沉淀时，由 agent 生成候选摘要，人工确认后写入 Obsidian。
+3. 在任务完成、compact 前、方案确认后，agent 可以主动给出候选摘要。
+4. 确认 Obsidian Local REST API 和 MCP 可用后，再在同一个 skill 内启用候选写入和 Daily 索引。
+5. 对 approved 条目做人工评审，少量迁移到 `rules/` 或现有 skill。

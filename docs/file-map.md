@@ -11,6 +11,10 @@
   - 可同步
   - 仅包含个人通用规则；通过逐文件软链接暴露到 `<codex-home>/rules/*.md`
   - 排除 `<codex-home>/rules/default.rules`
+- `skills/<managed-skill>/`
+  - 可同步
+  - 仅包含个人维护并确认可公开同步的 skill
+  - 当前知识库能力统一放在 `skills/personal-knowledge/`
 - `docs/agent-sync.md`
   - 可同步
   - 同步布局和安装说明，不参与规则加载

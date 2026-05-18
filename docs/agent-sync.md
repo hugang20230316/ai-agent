@@ -77,6 +77,7 @@
 - `bug`
 - `grafana`
 - `hg-git`
+- `personal-knowledge`
 - `publish-dev`
 - `requirements-organizer`
 

@@ -68,6 +68,7 @@ Skill 也只链接明确托管的目录，不链接整个 `~/.codex/skills`。Co
 - `publish-dev`
 - `grafana`
 - `hg-git`
+- `personal-knowledge`
 - `requirements-organizer`
 
 后续如果要把 `brainstorming`、`writing-plans`、`verification-before-completion` 等流程类 skill 也纳入个人维护，需要先检查来源和许可，再加入托管清单。
@@ -79,11 +80,13 @@ Skill 也只链接明确托管的目录，不链接整个 `~/.codex/skills`。Co
 ~/.codex/skills/publish-dev -> <ai-agent>/skills/publish-dev
 ~/.codex/skills/grafana -> <ai-agent>/skills/grafana
 ~/.codex/skills/hg-git -> <ai-agent>/skills/hg-git
+~/.codex/skills/personal-knowledge -> <ai-agent>/skills/personal-knowledge
 ~/.codex/skills/requirements-organizer -> <ai-agent>/skills/requirements-organizer
 
 ~/.claude/skills/bug -> <ai-agent>/skills/bug
 ~/.claude/skills/grafana -> <ai-agent>/skills/grafana
 ~/.claude/skills/hg-git -> <ai-agent>/skills/hg-git
+~/.claude/skills/personal-knowledge -> <ai-agent>/skills/personal-knowledge
 ~/.claude/skills/publish-dev -> <ai-agent>/skills/publish-dev
 ~/.claude/skills/requirements-organizer -> <ai-agent>/skills/requirements-organizer
 ~/.hermes/config.yaml skills.external_dirs includes each <ai-agent>/skills/<managed-skill>
@@ -102,6 +105,7 @@ OpenClaw 目标配置形态：
         "<ai-agent>/skills/bug",
         "<ai-agent>/skills/grafana",
         "<ai-agent>/skills/hg-git",
+        "<ai-agent>/skills/personal-knowledge",
         "<ai-agent>/skills/publish-dev",
         "<ai-agent>/skills/requirements-organizer"
       ]
