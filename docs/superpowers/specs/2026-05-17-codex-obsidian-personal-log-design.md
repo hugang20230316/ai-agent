@@ -4,7 +4,7 @@
 
 目标不是把 Codex 的每次对话都存进 Obsidian，而是把有长期价值的信息沉淀成个人知识。原始会话、工具输出和日志仍然属于运行态私有数据，不进入 Obsidian，不进入个人 GitHub 仓库。
 
-这套设计采用“候选式沉淀”：Codex 在关键节点生成脱敏摘要，先进入候选区；用户确认后，再进入业务域、规则或 skill。
+这套设计采用“候选式沉淀”：Codex 在关键节点生成私有摘要，先进入候选区；用户确认后，再进入业务域、规则或 skill。私有 Obsidian 默认保留可复用上下文，只有对外、同步或升级为可执行规则时才做严格脱敏。
 
 ## 设计依据
 
@@ -37,7 +37,9 @@
 - 自动读取整个 Obsidian vault 作为上下文。
 - 自动把候选内容升级成规则或 skill。
 - 用发布编号描述内部方案。
-- 公司项目、内部环境、账号、token、cookie、日志原文、接口响应原文和本机绝对路径的归档。
+- 把完整会话、完整日志、完整接口响应或浏览器会话当作知识库主体。
+- 自动归档生产账号密码、token、cookie、session、API key、私钥、连接串、验证码、恢复码和助记词等可直接授予访问权限的凭据值。
+- 让 agent 根据 Obsidian 中的 `secret_ref` 自动读取真实生产密钥。
 
 ## 总体流程
 
@@ -46,7 +48,7 @@ flowchart TD
   A[Codex 会话] --> B[自然节点]
   B --> C{有长期价值?}
   C -- 否 --> D[不记录]
-  C -- 是 --> E[敏感信息过滤]
+  C -- 是 --> E[凭据值处理]
   E --> F[候选摘要]
   F --> G[Obsidian Inbox 或 Daily]
   G --> H{用户确认?}
@@ -98,7 +100,9 @@ domain: Inbox
 contexts: []
 source: codex
 session_date: YYYY-MM-DD
-sensitivity: redacted
+sensitivity: private
+secret_policy: none
+secret_refs: []
 target: ""
 ---
 ```
@@ -114,14 +118,16 @@ target: ""
 | `contexts` | 低敏上下文标签，例如 `codex`、`testing`、`grafana` |
 | `source` | 来源工具 |
 | `session_date` | 产生日期 |
-| `sensitivity` | 脱敏状态 |
+| `sensitivity` | 私有或已脱敏状态，私有 Obsidian 候选默认 `private` |
+| `secret_policy` | 凭据处理策略；无凭据关联时为 `none`，只保留引用时为 `reference-only` |
+| `secret_refs` | 生产凭据或配置的安全引用名，不保存真实值 |
 | `target` | 如果未来要升级，写目标规则或 skill 名称 |
 
 正文只保存四类内容：
 
 - 摘要：这次形成了什么可复用信息。
 - 决策：用户明确确认了什么偏好或边界。
-- 证据：不敏感、可复述的依据。
+- 证据：能支撑结论的关键上下文，不粘贴完整原始输出。
 - 待处理：是否需要迁移到规则或 skill。
 
 ## 有意义判断
@@ -131,15 +137,33 @@ target: ""
 - 它能减少后续重复沟通。
 - 它能指导未来 agent 行为。
 - 它描述了稳定偏好、规则、流程、排查经验或技术决策。
-- 它已经脱敏，并且不依赖原始会话才能看懂。
+- 它不依赖原始会话才能看懂。
 
 不进入 Obsidian 的内容：
 
 - 低信息聊天。
 - 单次命令输出。
-- 临时路径、临时 URL 和临时环境。
+- 没有长期复用价值的临时路径、临时 URL 和临时环境。
 - 未确认的主观推断。
-- 敏感数据和公司项目细节。
+- 无长期复用价值的公司项目细节。
+- 生产账号密码、token、cookie、session、API key、私钥、连接串、验证码、恢复码和助记词等凭据值。
+
+## 生产凭据引用
+
+生产凭据值不进入 Obsidian。需要记录某次排查、发布或回滚关联了哪个凭据时，使用 `secret_ref`。
+
+```yaml
+secret_policy: reference-only
+secret_refs:
+  - prod-db-readonly
+```
+
+`secret_ref` 的边界：
+
+- 它是给人看的引用名，不是密钥、不包含密钥片段，也不是自动取密钥的开关。
+- 真实凭据留在 1Password、Keychain、环境变量、云厂商 Secret Manager 或本机私有配置中。
+- Obsidian 记录用途、影响范围、轮换状态、处理结论和验证结果。
+- Agent 默认不能根据 `secret_ref` 自动读取真实密钥；只有用户明确要求，并且通过本机私有密钥源时才允许查找。
 
 ## 触发节点
 
@@ -176,7 +200,7 @@ Obsidian 和 GitHub 的边界：
 候选升级成规则或 skill 前，需要人工判断：
 
 - 是否足够通用。
-- 是否无敏感信息。
+- 是否适合从私有 Obsidian 升级到公开规则或 skill。
 - 是否会和现有规则冲突。
 - 是否应该写规则、skill、模板，还是继续留在 Obsidian。
 
@@ -189,7 +213,7 @@ Obsidian 和 GitHub 的边界：
 后续如果启用自动写入，应满足：
 
 - 只读取当前会话的模型生成摘要，不读取完整历史库。
-- 写入前经过敏感过滤。
+- 写入私有 Obsidian 时默认保留上下文，仅处理可直接授予访问权限的凭据值；需要关联生产凭据时只写 `secret_ref`。
 - 默认写入 `AgentKnowledge/Inbox` 或 `AgentKnowledge/Daily`。
 - 写入条目保持 `status: candidate` 和 `agent_load: false`。
 - 写入失败时只报告失败原因，不改用不受控路径。
@@ -200,7 +224,7 @@ Obsidian 和 GitHub 的边界：
 - 个人规则库有明确的个人知识库沉淀规则。
 - 规则说明清楚禁止全量会话归档和自动规则升级。
 - README 或同步说明能指到这套设计。
-- 没有把本机私有配置、会话、日志、账号、token、cookie、公司项目和绝对路径写入公共仓库。
+- 没有把本机私有配置、会话、完整日志、生产账号密码、token、cookie、连接串和无法泛化的公司项目细节写入公共仓库。
 
 ## 启用顺序
 

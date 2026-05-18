@@ -15,7 +15,7 @@ Follow the active personal knowledge, privacy, skill, and project-governance rul
 
 | Subfunction | Use When | Result |
 | --- | --- | --- |
-| `capture` | A task reaches a meaningful node or the user asks to summarize, record, or save knowledge | Redacted candidate summary |
+| `capture` | A task reaches a meaningful node or the user asks to summarize, record, or save knowledge | Private candidate summary |
 | `write-candidate` | The user confirms writing a candidate to Obsidian, or explicitly asks for immediate candidate write | Candidate entry in `AgentKnowledge/Inbox` or `AgentKnowledge/Daily` |
 | `review-candidate` | The user asks to approve, archive, delete, or move a candidate | Updated candidate status or target domain |
 | `promote` | A candidate may become a reusable rule, skill, template, or checklist | Proposed rule or skill change after separate confirmation |
@@ -24,7 +24,7 @@ Follow the active personal knowledge, privacy, skill, and project-governance rul
 ## Workflow
 
 1. Decide whether the content has long-term value.
-2. Filter secrets, raw logs, raw tool output, company details, internal URLs, accounts, tokens, cookies, and local absolute paths.
+2. Preserve useful private context for Obsidian by default. Only replace credential values that can directly grant access, such as production passwords, tokens, cookies, sessions, API keys, private keys, connection strings, recovery codes, verification codes, and seed phrases. Use `secret_ref` only as a reference name, never as a secret store.
 3. Produce a candidate summary with `status: candidate` and `agent_load: false`.
 4. If writing is confirmed and the Obsidian channel is available, write only to `AgentKnowledge/Inbox` or `AgentKnowledge/Daily`.
 5. If the user approves a candidate, move it into the smallest matching business domain.
@@ -39,7 +39,28 @@ Keep candidate entries short and readable:
 - `可复用经验`: workflow, test strategy, release lesson, or tool limit
 - `待确认`: where it should live and whether it should become a rule or skill
 
-Do not attach full chat, command output, logs, interface responses, screenshots, credentials, or private project details.
+Do not attach full chat, full command output, oversized logs, oversized interface responses, screenshots, or browser sessions as the body of the note.
+
+Keep useful engineering context when it is needed to make the note actionable:
+
+- file paths, repo names, module names, symbols, test commands, and verification results
+- changed behavior, root cause category, implementation decision, and rollback or regression points
+- bug, feature, release, environment, QA, and internal workflow context that makes the note useful later
+
+Do not reject an otherwise useful private Obsidian note because it includes internal paths, internal URLs, project names, business fields, or debugging context. Keep those details when they make the note actionable. For credential-like content, replace only the secret value and keep the surrounding lesson.
+
+Apply stricter redaction only at export boundaries: public rules, public docs, GitHub sync, commits, final user-facing excerpts, non-private tools, or promotion into reusable skills.
+
+## Secret References
+
+Use `secret_ref` when a private note needs to remember which production credential or configuration item was involved. It is a pointer for humans, not a value for agents to resolve automatically.
+
+Rules:
+
+- write stable reference names such as `prod-db-readonly`, not real usernames, passwords, tokens, cookies, connection strings, or URL parameters
+- keep the incident context, root cause, rotation status, and verification result in the note
+- do not fetch or expand a `secret_ref` unless the user explicitly asks and the lookup uses a private local secret source
+- when exporting or promoting a note, keep only generalized wording unless the target is still private
 
 ## Obsidian Writes
 
@@ -53,7 +74,9 @@ agent_load: false
 domain: Inbox
 contexts: []
 source: codex
-sensitivity: redacted
+sensitivity: private
+secret_policy: none
+secret_refs: []
 ---
 ```
 
