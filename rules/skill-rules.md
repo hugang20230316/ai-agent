@@ -39,6 +39,7 @@
 ## 多 Agent 使用边界
 
 - Skill 流程只能服务用户目标，不能把“测试、检查、排查、修复、规则纠偏”升级成无关的 spec、plan、报告或留档交付；是否写文档以项目治理规则和用户明确要求为准。
+- 第三方 skill 的流程不能覆盖个人沟通规则；即使 skill 要求写 spec 或让用户 review 文件，也必须先在聊天里用中文给出可审核内容。
 - Superpowers 相关 skill 命中时，以 Superpowers 的执行与复核方法为准，包括 `subagent-driven-development`、`dispatching-parallel-agents`、`executing-plans` 及其引用的 reviewer/implementer 流程；但不得绕过安全、隐私、项目治理和用户明确范围，也不得强制生成用户没有要求且对当前目标无用的中间文档。
 - 非 Superpowers 场景下，才使用本地保守边界：启用多 agent 前先拆分关键路径和可并行支线；当前下一步所依赖的阻塞任务由主线程自己做，只有边界清晰、可独立推进的支线任务才委派。
 - 非 Superpowers 信息排查类委派必须给出具体问题、搜索范围、期望输出和不需要触碰的范围；多个 agent 之间的问题不能重复。
