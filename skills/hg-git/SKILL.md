@@ -71,6 +71,16 @@ Treat any repo as personal only after `git remote -v` confirms a `github.com/hug
 9. Before push, fetch or pull the latest remote state.
 10. Push only the confirmed personal repo branch.
 
+## Proxy Auto-Bypass
+
+These repos live on `github.com`. If `git pull` or `git push` fails with
+`Couldn't connect to server`, `Failed to connect to 127.0.0.1`, proxy refused,
+proxy timeout, or `Could not resolve proxy` against a local proxy port (e.g.
+`127.0.0.1:7897`, `127.0.0.1:7890`, `127.0.0.1:1087`, etc.), retry the same
+command once with `git -c http.proxy= -c https.proxy=` to bypass the stale
+proxy. Do not ask the user; do not change global git config. Only fall back to
+asking when the bypass attempt also fails or the error is not proxy-related.
+
 ## Private Data Encryption
 
 Encryption/decryption belongs to this `hg-git` skill, not to individual
