@@ -1,0 +1,4 @@
+interface:
+  display_name: "Personal Knowledge"
+  short_description: "沉淀 OpenClaw 与 Obsidian 的个人知识候选，并在确认后归档或升级为规则和 skill"
+  default_prompt: "Use $personal-knowledge to summarize meaningful agent work, create Obsidian candidates, review approved knowledge, or promote reusable items into rules or skills."

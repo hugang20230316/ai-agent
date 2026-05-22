@@ -21,17 +21,20 @@ Machine-specific API hosts, repo paths, app names, credentials, sessions, and re
 
 ## Shared Workflow
 
-1. Resolve the requested publish scope: default apps, selected components, all apps, preview only, or known-tag app update.
-2. Reuse any in-flight publish result instead of creating duplicate tags or duplicate syncs.
-3. Resolve or create the configured release tag through the Git provider API.
-4. Wait for the configured release pipeline/status gate.
-5. Update only the configured deployment image tag through Argo CD APIs.
-6. Verify the final app tag and sync/health state before reporting success or failure.
+1. Inspect the commits/files being published and identify the affected components before choosing apps.
+2. Resolve the requested publish scope: selected components from the change impact, explicit apps, all apps, preview only, or known-tag app update.
+3. Use default apps only as a fallback when the changed components cannot be mapped more specifically.
+4. Reuse any in-flight publish result instead of creating duplicate tags or duplicate syncs.
+5. Resolve or create the configured release tag through the Git provider API.
+6. Wait for the configured release pipeline/status gate.
+7. Update only the configured deployment image tag through Argo CD APIs.
+8. Verify the final app tag and sync/health state before reporting success or failure.
 
 ## Shared Guardrails
 
 - Keep credentials in local config, environment variables, or local encrypted state only.
 - Do not publish apps outside the configured scope.
+- Do not blindly publish the default apps when the change set points to different deployable components.
 - Preview/check mode must not create tags or sync apps.
 - Do not use browser automation unless the configured APIs are unavailable and local policy allows a fallback.
 - Timeout results require one read-only Git provider or Argo CD status refresh before reporting final failure.

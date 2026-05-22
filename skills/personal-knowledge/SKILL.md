@@ -17,9 +17,23 @@ Follow the active personal knowledge, privacy, skill, and project-governance rul
 | --- | --- | --- |
 | `capture` | A task reaches a meaningful node or the user asks to summarize, record, or save knowledge | Private candidate summary |
 | `write-candidate` | The user confirms writing a candidate to Obsidian, or explicitly asks for immediate candidate write | Candidate entry in `AgentKnowledge/Inbox` or `AgentKnowledge/Daily` |
+| `scheduled-scan` | An external scheduler (launchd / cron) periodically reads CLI session logs and proposes candidates | Candidate entry written directly to vault `AgentKnowledge/Inbox` or `AgentKnowledge/Daily` with `source` set to the originating CLI, `contexts` containing `scanner`, and a real `session_id` |
 | `review-candidate` | The user asks to approve, archive, delete, or move a candidate | Updated candidate status or target domain |
 | `promote` | A candidate may become a reusable rule, skill, template, or checklist | Proposed rule or skill change after separate confirmation |
 | `load-approved` | Future work needs reusable personal knowledge | Only approved, allowlisted, `agent_load: true` knowledge |
+
+## CLI Sources
+
+This skill covers four CLIs. Each has its own session log location used by the scheduled scanner; the in-session capture flow is identical.
+
+| Source | In-session capture | Session log root for the scanner |
+| --- | --- | --- |
+| `codex` | Codex CLI | `~/.codex/sessions/` |
+| `claude` | Claude Code | `~/.claude/projects/-Users-hugang/*.jsonl` |
+| `hermes` | Hermes | `$HERMES_HOME/sessions/` |
+| `openclaw` | OpenClaw | `~/.claude/projects/-private-*-openclaw-*/*.jsonl` |
+
+The scanner uses `source` to tag candidates and `session_id` (derived from the JSONL filename) to deduplicate against earlier scans and against Claude auto-memory.
 
 ## Workflow
 
@@ -74,13 +88,24 @@ agent_load: false
 domain: Inbox
 contexts: []
 source: codex
+session_id: ""
 sensitivity: private
 secret_policy: none
 secret_refs: []
 ---
 ```
 
-If Obsidian MCP, Local REST API, or write permission is unavailable, output the candidate summary in the reply and do not write through another path.
+`source` is required and must be one of `codex`, `claude`, `hermes`, `openclaw`; it tags the originating CLI. Scanner-generated candidates use the originating CLI as `source` and add `scanner` to `contexts`. `session_id` is required for scanner-generated candidates; in-session human captures may leave it empty.
+
+The frontmatter field set above is the single authoritative schema for both scanner and in-session captures. Do not emit deprecated fields such as `asset_type`, `source_key`, `session_date`, or use `type: knowledge-candidate`; the canonical `type` value is `agent-log-candidate`. Adding a new field requires updating this section first, then the scanner — never the reverse.
+
+`AgentKnowledge/Inbox/` directory listing IS the candidate index. Do not maintain a separate `候选池.md` or any other manual index file inside `Inbox/`; any such legacy file is out of the flow and should be ignored or removed.
+
+Write channels:
+
+- The scheduled scanner writes directly to `AgentKnowledge/Inbox/` or `AgentKnowledge/Daily/` files in the vault. Direct file write is the only supported channel for the scanner.
+- In-session captures may use the Obsidian MCP or Local REST API when available; otherwise they fall back to direct file write or output the candidate summary in the reply.
+- If no channel is reachable, output the candidate summary in the reply and do not write through another path.
 
 ## Promotion Rules
 

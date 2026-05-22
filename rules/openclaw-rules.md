@@ -11,7 +11,7 @@
 
 - 默认中文简洁回复，先做事再总结；不要把可执行任务停在计划阶段。
 - 最终答复只写实际变更、验证结果和剩余风险。
-- 消息带 `/hermes <message>` 时，调用 Hermes 本地 CLI 并只返回 Hermes 最终答复；具体 `HERMES_HOME` 使用本机私有配置或当前 profile 环境变量。
+- 在 OpenClaw 原生会话中，消息带 `/hermes <message>` 时，可以调用 Hermes 本地 CLI 并只返回 Hermes 最终答复；具体 `HERMES_HOME` 使用本机私有配置或当前 profile 环境变量。
 - `/hermes` 请求不得启动、停止、重启、安装、配置或登录 Hermes Gateway；如果 CLI 调用失败，只报告命令失败。
 - 不执行破坏性命令，不外发消息，不上传私有数据，除非用户明确授权。
 

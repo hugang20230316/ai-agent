@@ -3,12 +3,14 @@
 ## 触发范围
 
 - 用户要求记录、总结、沉淀、复盘、写入 Obsidian、整理个人日志、整理规则或整理 skill 时，读取本规则。
-- 长任务到达自然节点时，可以判断是否有可沉淀内容；自然节点包括方案确认、排查闭环、实现完成、发布完成、测试结论明确、用户明确做出偏好选择。
+- 长任务到达明确节点时，可以判断是否有可记录内容；例如方案确认、排查闭环、实现完成、发布完成、测试结论明确或用户明确做出长期偏好选择。
+- 系统定时扫描器读取各 CLI 会话日志时按本规则筛选可沉淀节点；扫描器范围覆盖 Codex、Claude、Hermes、OpenClaw 的会话产物，落地仍走候选与人工确认流程。
 - 普通寒暄、低信息问答、一次性命令、未验证猜测和纯过程汇报不进入知识库。
 
 ## 沉淀原则
 
-- Obsidian 是人工可读的个人知识库，不是 Codex 原始会话归档。
+- Obsidian 是人工可读的个人知识库，不是 CLI 原始会话归档。
+- Claude 自带 auto-memory（`~/.claude/projects/-Users-hugang/memory/`）作为 in-session 快路径，记录 user、feedback、project、reference 四类即时偏好；Obsidian 候选属于长期沉淀。扫描器写入 Obsidian 候选时按 `source` 与 `session_id` 去重，不重复记录 auto-memory 已覆盖的同一条目。
 - Obsidian 默认按私有知识库处理，保留能帮助后续复盘和继续工作的上下文；代码位置、仓库名、模块名、方法名、改动范围、测试命令、验证结论、问题编号、环境名称和必要的内部业务上下文可以进入知识库。
 - 敏感处理采用出口管控：写入私有 Obsidian 时默认不做脱敏；当内容要同步到个人 GitHub、写入公开规则、升级为 skill、进入提交记录、对外回复或交给非私有环境时，再按安全规则做脱敏、改写或删除。
 - 只有能直接登录、调用、越权访问或恢复身份的凭据类内容默认处理，例如生产账号密码、token、cookie、session、API key、私钥、连接串、验证码、恢复码和助记词；处理时只替换凭据值，尽量保留问题背景和操作结论。
@@ -21,6 +23,8 @@
 - 规则和 skill 的执行源仍然是个人规则仓库。Obsidian 中的候选内容只用于整理、复盘和人工确认，不直接改变 agent 行为。
 - 知识库自动化只维护一个 `personal-knowledge` skill；候选生成、候选写入、审批、Daily 索引、规则或 skill 升级都作为它的子功能，不再拆多个知识库 skill。
 - 方案、总结和知识库条目不要按发布编号命名；只有正式稳定并准备对外分发时，才考虑编号。
+- 单个 session 默认产出 ≤1 个候选；只有用户在该 session 中明确确认了 ≥2 个相互独立的知识点（不同决策、不同工作流、不同坑点），才允许拆分；同一主题的不同视角应合并为一条。
+- 含具体业务字段名、表名、方法名、bug 编号、接口名或人员名的内容只能进项目仓库；个人知识库只保留去场景化后的规则、工作流、坑点。
 
 ## 有意义判断
 
@@ -38,6 +42,18 @@
 - 未完成验证的猜测。
 - 无长期复用价值的公司项目、内部环境、业务字段、人员信息、账号和测试数据。
 - 用户没有确认的偏好推断。
+
+## 采集排除清单
+
+扫描器默认排除以下会话，不写入 Daily，也不产候选；人工捕获前同样要先比对本清单：
+
+- `session_id` 匹配 `api-*`：CLI 内部 LLM 辅助调用（标题生成、tag 生成、follow-up 生成等），不是用户与 agent 的真实协作会话。
+- 没有 assistant 回复的会话：只有 user 消息、只有错误码、只有连接中断或仅工具日志。
+- 以 `ECONNRESET`、API 错误、连接失败、立即 `/exit` 或会话夭折结束的会话。
+- 单轮寒暄会话：user 首条消息长度 ≤ 20 字符，且没有后续语义内容。
+- 单次执行结果、临时路径、临时 URL、临时日志、一次性错误码、一次性业务排查结论。
+
+排除掉的会话不需要在 Daily 留索引条目；如果用户事后要求追溯，再按需补记。
 
 ## 业务域
 
@@ -63,17 +79,30 @@ agent_load: false
 domain: Inbox
 contexts: []
 source: codex
+session_id: ""
 sensitivity: private
 secret_policy: none
 secret_refs: []
 ---
 ```
 
+`source` 必填，取值为 `codex`、`claude`、`hermes` 或 `openclaw`，表示候选所对应的 CLI 会话来源；扫描器产出的候选仍按 CLI 来源填写 `source`，并在 `contexts` 中加入 `scanner` 以区分人工捕获。`session_id` 用来定位原始会话，会话内人工生成可留空，扫描器生成必须填会话 JSONL 文件名或会话标识。
+
 私有 Obsidian 候选默认使用 `sensitivity: private`；只有已经为公开同步或外部输出处理过的条目才使用 `sensitivity: redacted`。
 
 若条目关联生产凭据或生产配置，设置 `secret_policy: reference-only` 并只填写稳定引用名，例如 `prod-db-readonly`；不要在 `secret_refs` 写真实账号、密码、token、cookie、连接串、URL 参数或可直接访问生产系统的值。
 
 正文写摘要、决策、可复用经验、待确认项和建议归档位置。不要把原始聊天当附件或引用块粘进去。
+
+候选标题与文件名由正文语义生成，不得直接截取 user 首条消息、会话起始内容或 CLI 自动会话标题。只能拿到首条消息（极短会话、未展开会话）时，整体不进候选。
+
+## 扫描器写入红线
+
+- 扫描器以直接文件写入 vault 的 `AgentKnowledge/Inbox/` 或 `AgentKnowledge/Daily/` 作为标准通道；MCP 与 Local REST API 仅用于会话内人工写入。
+- 扫描器读取会话 JSONL 时，若工具输出含密码、token、cookie、session、连接串、API key 明文（包括 `~/.claude/mcp.json` 这类配置文件原文），必须以 `secret_ref` 占位，原始值不能进入候选正文。
+- 扫描器写入失败时只在自身日志记录失败原因，不改写到非 vault 路径，不把候选塞进任何 agent 上下文。
+- 扫描器只读会话日志和已知 vault 目录，不读 `~/.claude/projects/*/memory/`、`~/.codex/local/`、Hermes sessions、OpenClaw workspace 私有目录等其他位置。
+- 扫描器每跑完一批必须在自身日志输出本批自检统计：写入文件数、frontmatter schema 校验失败数、排除清单命中数、单 session 候选数分布、主题与正文语义脱节告警数。自检异常时本批整体回退或标红，不依赖人工事后审计发现 schema drift 或采集偏差。
 
 ## 写入流程
 

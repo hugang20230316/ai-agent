@@ -26,7 +26,7 @@
 
 本设计覆盖：
 
-- Codex 会话在自然节点生成个人知识候选。
+- Codex 会话到达明确节点时生成个人知识候选，例如方案确认、排查闭环、实现完成、测试结论明确或用户确认了长期偏好。
 - 候选摘要写入 Obsidian。
 - Obsidian 内容按最小业务域整理。
 - 经用户确认后，将稳定知识迁移到个人规则或 skill。
@@ -45,7 +45,7 @@
 
 ```mermaid
 flowchart TD
-  A[Codex 会话] --> B[自然节点]
+  A[Codex 会话] --> B[明确节点]
   B --> C{有长期价值?}
   C -- 否 --> D[不记录]
   C -- 是 --> E[凭据值处理]
@@ -233,3 +233,7 @@ Obsidian 和 GitHub 的边界：
 3. 在任务完成、compact 前、方案确认后，agent 可以主动给出候选摘要。
 4. 确认 Obsidian Local REST API 和 MCP 可用后，再在同一个 skill 内启用候选写入和 Daily 索引。
 5. 对 approved 条目做人工评审，少量迁移到 `rules/` 或现有 skill。
+
+---
+
+> 注：本设计是 2026-05-17 的初版快照，原本只覆盖 Codex。后续扩展为多 CLI（Codex、Claude、Hermes、OpenClaw）方案，并加入系统定时扫描器作为可选触发方式。最新行为约束以 `~/ai-agent/rules/personal-knowledge-rules.md` 和 `~/ai-agent/skills/personal-knowledge/SKILL.md` 为准。

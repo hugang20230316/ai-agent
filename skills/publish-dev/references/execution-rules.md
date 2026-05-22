@@ -14,6 +14,7 @@ This file contains shared release rules. Use the machine's Python 3 executable; 
 ## Shared Rules
 
 - Read repository, Git provider, Argo CD, app list, component map, tag pattern, timeout values, credentials, and local state from local configuration.
+- Inspect the commits/files being published before choosing apps; use the default app list only as a fallback when changed components cannot be mapped more specifically.
 - Reuse in-flight publish state instead of creating duplicate tags or duplicate app syncs.
 - Preview mode must not create tags or sync apps.
 - Real publish must report planned tag, final release tag, app updates, unchanged apps, and failures.
