@@ -68,6 +68,7 @@
 
 - 不要通过修改官方、第三方或包管理器安装的 skill/plugin 文件来沉淀个人行为偏好；这类文件会被更新覆盖。
 - 个人行为约束只能写入 `rules/*.md`、项目 `AGENTS.md`、项目 `.codex/rules/` 或明确属于个人维护的自定义 skill。
+- 个人自建或明确个人维护的 skill，唯一来源放在 `ai-agent/skills/<skill-name>/`；各工具的生效目录只保留单个软链接或配置引用。
 - 修改 skill/plugin 文件只允许用于用户明确要求维护该自定义 skill/plugin，或临时排查本机问题；不能把它当作全局规则入口。
 - 安装、同步或搬迁 skill 前，先检查目标工具实际会扫描的所有 skill 根目录；同名 skill 在同一工具的扫描范围内只能保留一份，不要同时放在 `~/.codex/skills` 和 `~/.agents/skills`，也不要同时放在 `~/.openclaw/skills` 和 `~/.openclaw/workspace/skills`。
 - 维护自定义 skill 时，先合并重复、失效或互相打架的规则，再保留最小可执行集合；不要把同一约束散写在多个位置。

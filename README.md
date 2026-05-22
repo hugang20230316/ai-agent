@@ -49,6 +49,7 @@ Shared custom skills:
 - `skills/bug/`
 - `skills/grafana/`
 - `skills/hg-git/`
+- `skills/multi-agent-workflow/`
 - `skills/personal-knowledge/`
 - `skills/publish-dev/`
 - `skills/requirements-organizer/`
@@ -75,7 +76,7 @@ The active shared entry file should reference the rule files in `rules/`. Do not
 
 Do not maintain public per-platform global entry templates. Platform differences belong in local private configuration, environment variables, or cross-platform scripts that detect the host at runtime.
 
-Shared custom skills are stored under `skills/`. Do not symlink an entire tool skill directory into this repository; only add skills you personally maintain and have reviewed for public sync.
+Shared custom skills are stored under `skills/`. Personal or explicitly maintained skills use `skills/<skill-name>/` as the source. Do not symlink an entire tool skill directory into this repository; only add skills you personally maintain and have reviewed for public sync.
 
 Codex and Claude can expose those shared skills through per-skill symlinks. Hermes should list each shared skill directory in `skills.external_dirs`. OpenClaw should list each shared skill directory in `skills.load.extraDirs`; workspace skill symlinks that resolve outside the workspace are rejected as `symlink-escape`.
 

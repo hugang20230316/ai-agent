@@ -13,7 +13,7 @@
   - 排除 `<codex-home>/rules/default.rules`
 - `skills/<managed-skill>/`
   - 可同步
-  - 仅包含个人维护并确认可公开同步的 skill
+  - 仅包含个人自建或明确个人维护并确认可公开同步的 skill
   - 当前知识库能力统一放在 `skills/personal-knowledge/`
 - `docs/agent-sync.md`
   - 可同步

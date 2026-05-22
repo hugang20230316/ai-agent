@@ -5,7 +5,7 @@
 ## 目标
 
 - `ai-agent/rules/*.md` 是公共规则唯一来源。
-- `ai-agent/skills/<skill-name>/` 是个人自定义 skill 唯一来源。
+- `ai-agent/skills/<skill-name>/` 是个人自建或明确个人维护 skill 的唯一来源。
 - Codex 修改 `~/.codex/rules/*.md` 时，实际修改 `ai-agent/rules/*.md`。
 - 只软链接明确托管的文件或 skill；不软链接整个工具目录。
 - `default.rules`、本机 local 配置、缓存、会话、日志和凭据保持本机私有。
@@ -62,13 +62,14 @@ Codex 侧的目标状态：
 
 Skill 也只链接明确托管的目录，不链接整个 `~/.codex/skills`。Codex 的 skill 目录里混有系统 skill、插件 skill、缓存和本机安装态，整体纳入 Git 会污染公共仓库。
 
-第一阶段托管这些自定义 skill：
+当前托管这些个人 skill：
 
 - `bug`
-- `publish-dev`
 - `grafana`
 - `hg-git`
+- `multi-agent-workflow`
 - `personal-knowledge`
+- `publish-dev`
 - `requirements-organizer`
 
 后续如果要把 `brainstorming`、`writing-plans`、`verification-before-completion` 等流程类 skill 也纳入个人维护，需要先检查来源和许可，再加入托管清单。
@@ -80,12 +81,14 @@ Skill 也只链接明确托管的目录，不链接整个 `~/.codex/skills`。Co
 ~/.codex/skills/publish-dev -> <ai-agent>/skills/publish-dev
 ~/.codex/skills/grafana -> <ai-agent>/skills/grafana
 ~/.codex/skills/hg-git -> <ai-agent>/skills/hg-git
+~/.codex/skills/multi-agent-workflow -> <ai-agent>/skills/multi-agent-workflow
 ~/.codex/skills/personal-knowledge -> <ai-agent>/skills/personal-knowledge
 ~/.codex/skills/requirements-organizer -> <ai-agent>/skills/requirements-organizer
 
 ~/.claude/skills/bug -> <ai-agent>/skills/bug
 ~/.claude/skills/grafana -> <ai-agent>/skills/grafana
 ~/.claude/skills/hg-git -> <ai-agent>/skills/hg-git
+~/.claude/skills/multi-agent-workflow -> <ai-agent>/skills/multi-agent-workflow
 ~/.claude/skills/personal-knowledge -> <ai-agent>/skills/personal-knowledge
 ~/.claude/skills/publish-dev -> <ai-agent>/skills/publish-dev
 ~/.claude/skills/requirements-organizer -> <ai-agent>/skills/requirements-organizer
@@ -105,6 +108,7 @@ OpenClaw 目标配置形态：
         "<ai-agent>/skills/bug",
         "<ai-agent>/skills/grafana",
         "<ai-agent>/skills/hg-git",
+        "<ai-agent>/skills/multi-agent-workflow",
         "<ai-agent>/skills/personal-knowledge",
         "<ai-agent>/skills/publish-dev",
         "<ai-agent>/skills/requirements-organizer"

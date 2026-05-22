@@ -68,7 +68,7 @@
 
 ## Skill 同步
 
-个人自定义 skill 放在本仓库的 `skills/<skill-name>/` 下。每个工具只软链接明确托管的 skill 目录。
+个人自建或明确个人维护的 skill 放在本仓库的 `skills/<skill-name>/` 下。每个工具只软链接或配置引用明确托管的 skill 目录。
 
 不要软链接整个工具 skill 目录，这些目录混有系统 skill、插件 skill、缓存和本机安装态。
 
@@ -77,6 +77,7 @@
 - `bug`
 - `grafana`
 - `hg-git`
+- `multi-agent-workflow`
 - `personal-knowledge`
 - `publish-dev`
 - `requirements-organizer`

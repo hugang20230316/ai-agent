@@ -17,9 +17,9 @@
 - 生产凭据值不写入 Obsidian；如果记录确实需要关联某个凭据或配置，使用 `secret_ref` 记录安全引用名。`secret_ref` 只能指向密钥管理器、本机私有配置、Keychain、环境变量或云厂商 Secret Manager 中的条目，不得包含真实凭据、账号密码、token 片段或可反推出密钥的值。
 - `secret_ref` 只用于定位、复盘和轮换记录；agent 默认不得根据 `secret_ref` 自动读取真实密钥。需要读取时，必须由用户明确授权，并通过本机私有配置或专用密钥工具完成。
 - 不把完整对话、完整工具输出、超长日志原文、超长接口响应原文或浏览器会话当作知识库主体；这类内容不是因为敏感，而是因为可读性和复用价值低。确实需要保留证据时，只摘取关键片段或记录本机私有位置。
-- 默认生成候选条目，状态为 `candidate`，`agent_load` 必须为 `false`。
+- 默认生成候选日志，状态为 `候选`。
 - 即使用户要求写入 Obsidian，也默认先生成候选摘要并等待确认；除非用户明确要求立即写入候选区。
-- 只有用户明确确认后，候选条目才可以进入正式业务域；只有 `status: approved` 且 `agent_load: true` 且位于 allowlist 的内容，未来才可以被 agent 当作可加载知识。
+- 只有用户明确确认后，候选日志才可以进入正式业务域；候选日志不直接改变 agent 行为。
 - 规则和 skill 的执行源仍然是个人规则仓库。Obsidian 中的候选内容只用于整理、复盘和人工确认，不直接改变 agent 行为。
 - 知识库自动化只维护一个 `personal-knowledge` skill；候选生成、候选写入、审批、Daily 索引、规则或 skill 升级都作为它的子功能，不再拆多个知识库 skill。
 - 方案、总结和知识库条目不要按发布编号命名；只有正式稳定并准备对外分发时，才考虑编号。
@@ -65,34 +65,53 @@
 - `04-需求与文档`：需求、原型、PRD、技术调研、方案文档和写作规范。
 - `05-交付与验证`：测试、QA、发布、GitHub 同步、dev 发布和回归。
 
-不要因为单次任务新增顶层域。新主题先放 `Inbox`，累计出现稳定复用价值后再归入已有域或拆分。
+不要因为单次任务新增顶层域。新日志可以先写入 `AgentKnowledge/Inbox/` 便于人工处理，但 `domain` 必须选择上面 5 个业务域之一，不能把 `Inbox` 当作归宿。
 
 ## 候选条目格式
 
-候选条目至少包含：
+候选日志默认 frontmatter：
 
 ```yaml
 ---
-type: agent-log-candidate
-status: candidate
-agent_load: false
-domain: Inbox
-contexts: []
+type: agent-log
+status: 候选
+domain: 01-Agent工作台
+tags: []
 source: codex
-session_id: ""
-sensitivity: private
-secret_policy: none
-secret_refs: []
+related_issues: []
+pattern_candidate: ""
 ---
 ```
 
-`source` 必填，取值为 `codex`、`claude`、`hermes` 或 `openclaw`，表示候选所对应的 CLI 会话来源；扫描器产出的候选仍按 CLI 来源填写 `source`，并在 `contexts` 中加入 `scanner` 以区分人工捕获。`session_id` 用来定位原始会话，会话内人工生成可留空，扫描器生成必须填会话 JSONL 文件名或会话标识。
+`source` 必填，取值为 `codex`、`claude`、`hermes` 或 `openclaw`，表示候选对应的 CLI 会话来源。扫描器生成的候选可以额外写 `session_id`，用于去重、覆盖旧候选和追溯原始会话；会话内人工捕获可省略。
 
-私有 Obsidian 候选默认使用 `sensitivity: private`；只有已经为公开同步或外部输出处理过的条目才使用 `sensitivity: redacted`。
+`domain` 是唯一业务归宿，只能使用 `01-Agent工作台`、`02-研发实现`、`03-排查与观测`、`04-需求与文档`、`05-交付与验证`。`tags` 使用简短中文标签，来自会话语义，例如 `开发`、`学习`、`解决 bug`、`质量把控`。
 
-若条目关联生产凭据或生产配置，设置 `secret_policy: reference-only` 并只填写稳定引用名，例如 `prod-db-readonly`；不要在 `secret_refs` 写真实账号、密码、token、cookie、连接串、URL 参数或可直接访问生产系统的值。
+`related_issues` 写已确认有关联的历史日志；没有证据就留空。`pattern_candidate` 用自然语言写疑似模式，不做稳定 ID，不使用 `repeat_key` 和 `repeat_count`。
 
-正文写摘要、决策、可复用经验、待确认项和建议归档位置。不要把原始聊天当附件或引用块粘进去。
+用户明确纠正、抱怨、发火、辱骂或指出问题时，额外写：
+
+```yaml
+feedback_signal: 纠正
+feedback_target: 验证流程
+```
+
+`feedback_signal` 只用中文值，例如 `纠正`、`抱怨`、`发火`、`辱骂`；`feedback_target` 写用户反馈指向的对象。
+
+默认不要写 `agent_load`、`contexts`、`sensitivity`、`secret_policy`、`secret_refs: []`、`repeat_key`、`repeat_count`、`simple_tags`、`primary_home` 或 `topics`。确实需要引用凭据或私有配置时，只额外写 `secret_refs`，值只能是安全引用名，不得包含真实凭据。
+
+正文至少包含：
+
+- `摘要`
+- `关键事实`
+- `证据与资料`
+- `具体问题`
+- `解决方案`
+- `验证情况`
+- `关联判断`
+- `待处理`
+
+`关联判断` 必须写出归宿 wiki 链接，例如 `归宿：[[01-Agent工作台/README|01-Agent工作台]]`。不要把原始聊天当附件或引用块粘进去；可以压缩，但关键语义、证据、资料和验证边界不能丢。
 
 候选标题与文件名由正文语义生成，不得直接截取 user 首条消息、会话起始内容或 CLI 自动会话标题。只能拿到首条消息（极短会话、未展开会话）时，整体不进候选。
 
@@ -103,6 +122,7 @@ secret_refs: []
 - 扫描器写入失败时只在自身日志记录失败原因，不改写到非 vault 路径，不把候选塞进任何 agent 上下文。
 - 扫描器只读会话日志和已知 vault 目录，不读 `~/.claude/projects/*/memory/`、`~/.codex/local/`、Hermes sessions、OpenClaw workspace 私有目录等其他位置。
 - 扫描器每跑完一批必须在自身日志输出本批自检统计：写入文件数、frontmatter schema 校验失败数、排除清单命中数、单 session 候选数分布、主题与正文语义脱节告警数。自检异常时本批整体回退或标红，不依赖人工事后审计发现 schema drift 或采集偏差。
+- 扫描器、模板或 writer 不得继续写旧格式字段；发现 `type: agent-log-candidate`、`status: candidate`、`agent_load`、`domain: Inbox`、`contexts`、`sensitivity`、`secret_policy`、`secret_refs: []` 时必须阻断写入并修正生成源。
 
 ## 写入流程
 
