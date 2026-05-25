@@ -9,6 +9,6 @@ This is the shared call-chain mapping contract. Project-specific details belong 
 3. Prefer the full path: entry API -> business/service -> downstream RPC/service -> async consumer -> storage or external dependency.
 4. Separate proven nodes from inferred nodes.
 
-## Shared Output
+## Output Contract
 
 Start with the call chain, then list the exact Grafana evidence that supports each node.

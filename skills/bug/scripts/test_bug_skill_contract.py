@@ -59,6 +59,9 @@ REQUIRED_PHRASES = {
     "vague_placeholders": "Do not use vague placeholders when the relationship is unclear",
     "decision_chain": "review adjacent branches, helper names, and comments in the same chain",
     "normal_follow_up": "For normal follow-up questions during the same investigation",
+    "continue_fix_after_verification_gap": "verification exposes another fixable failure in the same authorized bug workflow",
+    "rerun_verification_after_fix": "continue fixing and rerun verification",
+    "ask_only_new_authorization": "Stop to ask only when the next action needs new authorization",
 }
 
 

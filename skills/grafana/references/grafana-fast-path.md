@@ -10,6 +10,6 @@ This is the shared fast-path contract.
 4. Keep the first query narrow: one app, one identifier, and the smallest useful time range.
 5. Use browser fallback only for login refresh or dashboard structure drift.
 
-## Shared Output
+## Output Contract
 
 Return the query expression, time range, dashboard URL when available, and the call-chain node each result supports.

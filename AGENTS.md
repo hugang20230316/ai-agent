@@ -31,8 +31,11 @@
 - 普通协作、回复风格、任务边界或用户纠偏场景，读取 `@rules/communication-rules.md`。
 - 涉及私有配置、凭据、同步边界、公司项目、上传、提交、发布或外部动作时，读取 `@rules/security-and-privacy-rules.md`。
 - 涉及创建、修改或审阅 Markdown 文档时，必须在生成内容或编辑文件前读取 `@rules/markdown-rules.md`，并按其中的图表、围栏和自检要求执行。
-- 涉及创建、修改、审阅、解释或重构代码时，必须在动手前读取 `@rules/coding-rules.md`；完成前必须检查新增或修改的方法位置、方法注释、参数注释、返回值注释、字段注释、常量注释和配置项注释是否符合当前文件既有风格。
+- 涉及创建、修改、审阅、解释或重构代码时，必须在动手前读取 `@rules/coding-rules.md`；完成前必须检查新增或修改的方法位置、方法命名证据、方法注释、参数注释、返回值注释、字段注释、常量注释、配置项注释和私有辅助方法抽取价值是否符合当前文件既有风格。
 - 涉及测试、验证、修复完成声明、回归检查或质量结论时，读取 `@rules/testing-rules.md`。
+- 涉及规则没命中、同类错误复发、规则硬编码、规则分类混乱、规则热修、规则纠偏或验证规则是否生效时，必须同时读取 `@rules/communication-rules.md`、`@rules/project-governance.md`、`@rules/testing-rules.md` 和 `@rules/coding-rules.md`；若还涉及记录、候选或 Obsidian 证据，再读取 `@rules/personal-knowledge-rules.md`。
+- 涉及长任务、多阶段排查、未完成收口、上下文压力或 `/compact` 时，必须同时读取 `@rules/communication-rules.md` 和 `@rules/testing-rules.md`。
+- 涉及方法名过长、实现细节命名、字段语义、注释缺失、注释过长、泛词注释或无意义封装时，必须同时读取 `@rules/coding-rules.md` 和 `@rules/testing-rules.md`，并用最终 diff 复查命名、注释和辅助方法是否仍有同类问题。
 - 用户点名 skill、插件或任务语义命中某个 skill 时，必须同时按 `@rules/skill-rules.md` 执行触发、加载、推荐筛选和修改边界规则。
 - 涉及 OpenClaw 配置、SOUL、workspace、skills 或 OpenClaw 运行行为时，读取 `@rules/openclaw-rules.md`。
 - 涉及 Hermes 配置、SOUL、AGENTS、rules、skills、CLI、Dashboard、Gateway、MCP、cron 或 Hermes 运行行为时，读取 `@rules/hermes-rules.md`。

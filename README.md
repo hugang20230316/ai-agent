@@ -6,27 +6,29 @@ This repository stores portable agent guidance that can be shared between Window
 
 ## Directory Boundary
 
-`AGENTS.md` is the shared rule entry. `rules/` stores shared behavior rules. `skills/` stores personally maintained skills. `docs/` is only explanatory material and is not loaded by the agents.
+`AGENTS.md` is the shared rule entry. `rules/` stores shared behavior rules. `skills/` stores personally maintained skills. `scripts/` stores portable verification scripts. `docs/` is only explanatory material and is not loaded by the agents.
 
 ```mermaid
 flowchart LR
   repo[Repo] --> entry[Entry]
   entry --> rules[Rules]
   repo --> skills[Skills]
+  repo --> scripts[Scripts]
   repo --> docs[Docs]
   rules --> active[Active rules]
   skills --> shared[Shared skills]
+  scripts --> checks[Checks]
   docs --> notes[Notes only]
 
   classDef source fill:#eef6ff,stroke:#3b82f6,color:#111827
   classDef active fill:#ecfdf5,stroke:#10b981,color:#064e3b
   classDef passive fill:#fff7ed,stroke:#f97316,color:#7c2d12
   class repo,entry source
-  class rules,active,skills,shared active
+  class rules,active,skills,shared,scripts,checks active
   class docs,notes passive
 ```
 
-`Entry` is `AGENTS.md`, `Rules` is `rules/*.md`, `Skills` is `skills/<skill-name>/`, and `Docs` is `docs/*.md`.
+`Entry` is `AGENTS.md`, `Rules` is `rules/*.md`, `Skills` is `skills/<skill-name>/`, `Scripts` is `scripts/*.py`, and `Docs` is `docs/*.md`.
 
 ## Contents
 
@@ -53,6 +55,10 @@ Shared custom skills:
 - `skills/personal-knowledge/`
 - `skills/publish-dev/`
 - `skills/requirements-organizer/`
+
+Shared scripts:
+
+- `scripts/verify_agent_rules.py`: regression checks for shared rules and managed skills
 
 On each machine, expose these rule files to each agent by per-file symlink:
 

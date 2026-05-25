@@ -404,20 +404,17 @@ In candidate formatting, use canonical frontmatter from `personal-knowledge` ski
 
 ```yaml
 ---
-type: agent-log-candidate
-status: candidate
-agent_load: false
-domain: Inbox
-contexts: [scanner]
+type: agent-log
+status: 候选
+domain: 01-Agent工作台
+tags: []
 source: codex
-session_id: ""
-sensitivity: private
-secret_policy: none
-secret_refs: []
+related_issues: []
+pattern_candidate: ""
 ---
 ```
 
-Do not emit deprecated `asset_type`, `source_key`, `session_date`, or `type: knowledge-candidate`.
+Scanner-generated candidates may add `session_id` for dedupe. Do not emit deprecated `asset_type`, `source_key`, `session_date`, credential frontmatter fields, or old candidate schemas.
 
 **Step 6: Run targeted tests**
 

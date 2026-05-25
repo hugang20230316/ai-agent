@@ -41,7 +41,7 @@ Machine-specific Grafana hosts, dashboard UIDs, browser sessions, credentials, a
 - When providing JSON/HTML reproduction payloads, prefer a single-line compact JSON block or an attached/local file path. Warn that inserted line breaks or spaces inside HTML attributes, closing tags, GUIDs, or IDs can change results.
 - If current reproduction differs from historical logs or screenshots, do not force them to match. Report both facts and identify the missing evidence needed to close the gap.
 
-## Shared Output
+## Output Contract
 
 Return the call chain first, then Grafana evidence, project mapping, reproduction evidence if any, and current judgment. Include the exact query or dashboard URL used when available.
 
@@ -55,5 +55,8 @@ For incident reports, include:
 ## Troubleshooting Notes
 
 - On Windows, Python may resolve the npm extensionless `agent-browser` shim and fail with `WinError 193`. Prefer a real executable shim such as `.cmd`, or use a Grafana API query fallback with the existing browser session cookie.
+- If `ensure-session` fails with `net::ERR_CONNECTION_CLOSED`, check inherited proxy variables first (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, lowercase variants). Some internal Grafana hosts are reachable directly but fail through a local proxy. Retry with a clean env, e.g. `env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u all_proxy python3 scripts/grafana.py ensure-session`.
+- If agent-browser reports `Domain '<host>' is not in the allowed domains list` even when the host is passed in `--allowed-domains`, check for a stale running agent-browser daemon/session. `agent-browser close --all` and retry. A daemon started with a restrictive allowlist can persist across commands and ignore broader later flags.
+- If the wrapper query expression still contains `$app` or `$namespace`, patch `expand_expr` to replace both `${var}` and bare `$var` placeholders; otherwise logs may be unscoped and misleading.
 - If the skill wrapper fails but a valid Grafana session exists, direct read-only calls to Grafana's datasource query API are acceptable as a fallback. Keep datasource IDs, dashboard IDs, hosts, and cookies out of shared rules and final public artifacts unless the user explicitly needs a query URL.
 - A successful HTTP 200 response can still contain a business error status. Report HTTP status and business status separately.

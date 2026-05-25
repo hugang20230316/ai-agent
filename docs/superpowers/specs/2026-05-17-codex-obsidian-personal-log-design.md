@@ -93,17 +93,13 @@ Templates/
 
 ```yaml
 ---
-type: agent-log-candidate
-status: candidate
-agent_load: false
-domain: Inbox
-contexts: []
+type: agent-log
+status: 候选
+domain: 01-Agent工作台
+tags: []
 source: codex
-session_date: YYYY-MM-DD
-sensitivity: private
-secret_policy: none
-secret_refs: []
-target: ""
+related_issues: []
+pattern_candidate: ""
 ---
 ```
 
@@ -111,17 +107,13 @@ target: ""
 
 | 字段 | 含义 |
 | --- | --- |
-| `type` | 条目类型，候选日志固定为 `agent-log-candidate` |
-| `status` | `candidate`、`approved`、`archived` |
-| `agent_load` | 是否允许未来 agent 加载，候选必须为 `false` |
-| `domain` | 目标业务域 |
-| `contexts` | 低敏上下文标签，例如 `codex`、`testing`、`grafana` |
+| `type` | 条目类型，候选日志固定为 `agent-log` |
+| `status` | 候选、已确认、已归档等中文状态 |
+| `domain` | 唯一业务域 |
+| `tags` | 简短中文标签 |
 | `source` | 来源工具 |
-| `session_date` | 产生日期 |
-| `sensitivity` | 私有或已脱敏状态，私有 Obsidian 候选默认 `private` |
-| `secret_policy` | 凭据处理策略；无凭据关联时为 `none`，只保留引用时为 `reference-only` |
-| `secret_refs` | 生产凭据或配置的安全引用名，不保存真实值 |
-| `target` | 如果未来要升级，写目标规则或 skill 名称 |
+| `related_issues` | 已确认有关联的历史日志 |
+| `pattern_candidate` | 人工可审的疑似模式 |
 
 正文只保存四类内容：
 
@@ -150,13 +142,7 @@ target: ""
 
 ## 生产凭据引用
 
-生产凭据值不进入 Obsidian。需要记录某次排查、发布或回滚关联了哪个凭据时，使用 `secret_ref`。
-
-```yaml
-secret_policy: reference-only
-secret_refs:
-  - prod-db-readonly
-```
+生产凭据值不进入 Obsidian。候选 frontmatter 不保留凭据字段；确实需要记录某次排查、发布或回滚关联了哪个凭据时，在正文用脱敏中文或安全引用名说明。
 
 `secret_ref` 的边界：
 
@@ -215,7 +201,7 @@ Obsidian 和 GitHub 的边界：
 - 只读取当前会话的模型生成摘要，不读取完整历史库。
 - 写入私有 Obsidian 时默认保留上下文，仅处理可直接授予访问权限的凭据值；需要关联生产凭据时只写 `secret_ref`。
 - 默认写入 `AgentKnowledge/Inbox` 或 `AgentKnowledge/Daily`。
-- 写入条目保持 `status: candidate` 和 `agent_load: false`。
+- 写入候选条目保持 `status: 候选`，不要使用会自动改变 agent 行为的字段。
 - 写入失败时只报告失败原因，不改用不受控路径。
 
 ## 验收标准

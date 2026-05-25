@@ -30,6 +30,9 @@
 - `docs/superpowers/specs/*.md`
   - 可同步
   - 已确认的方案设计，不参与规则加载
+- `scripts/*.py`
+  - 可同步
+  - 只放跨工具、无凭据、可重复运行的规则或仓库自检脚本
 - `README.md`
   - 可同步
 - `.gitignore`

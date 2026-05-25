@@ -44,6 +44,8 @@ The scanner uses `source` to tag candidates and `session_id` (derived from the J
 5. If the user approves a candidate, move it into the smallest matching business domain.
 6. If a candidate should affect future agent behavior, ask for separate confirmation before changing `rules/` or this skill.
 
+Current-session rule corrections are a separate hotfix path, not candidate promotion. If the user explicitly says a rule missed, a rule is hard-coded, the same rule failure repeated, or the rule category is wrong, follow project-governance hotfix rules first; optionally capture the failure mode and verification result as an Obsidian candidate after the rule change.
+
 ## Candidate Body
 
 Keep candidate entries short and readable, but do not drop key meaning, evidence, sources, or validation boundaries.
@@ -104,6 +106,8 @@ Use short Chinese `tags` inferred from the session. Field names may stay English
 
 Use `related_issues` for confirmed related notes and `pattern_candidate` for a human-readable suspected pattern. Do not use `repeat_key` or `repeat_count`; repeated issues are too fuzzy for a stable key in the default log format.
 
+In `关联判断`, link the home domain to a semantic hub page such as `[[01-Agent工作台/01-Agent工作台|01-Agent工作台]]`. Do not link candidate logs to directory `README.md` files as their home; README links make Obsidian Graph centrality reflect folder documentation instead of meaningful knowledge domains.
+
 Only when the user explicitly corrects, complains, gets angry, insults, or otherwise gives a high-value feedback signal, add:
 
 ```yaml
@@ -111,9 +115,11 @@ feedback_signal: 纠正
 feedback_target: 验证流程
 ```
 
-Only when a note must point to a credential or private configuration item, add `secret_refs` with safe reference names. Do not include real secrets.
+Candidate logs do not put credential fields in frontmatter. If a sensitive configuration item matters to the conclusion, describe it in the body with a redacted Chinese phrase such as `测试环境只读账号`; do not include real secrets, connection strings, tokens, or values that can reveal them.
 
-The default schema must not include `agent_load`, `contexts`, `sensitivity`, `secret_policy`, `secret_refs: []`, `repeat_key`, `repeat_count`, `simple_tags`, `primary_home`, or `topics`. Do not emit deprecated fields such as `asset_type`, `source_key`, `session_date`, or use `type: knowledge-candidate` / `type: agent-log-candidate`.
+Human-facing bodies must not expose scanner tracking details. Keep `source_key`, raw evidence ids such as `turn_N`/`tool_N`, and sync markers such as `obsidian-log-sync` in scanner JSON, frontmatter, or reports only; candidate body evidence should be a readable natural-language summary.
+
+The default schema must not include `agent_load`, `contexts`, `sensitivity`, `secret_policy`, `secret_refs`, `repeat_key`, `repeat_count`, `simple_tags`, `primary_home`, or `topics`. Do not emit deprecated fields such as `asset_type`, `source_key`, `session_date`, or use `type: knowledge-candidate` / `type: agent-log-candidate`.
 
 The frontmatter field set above and the body section list are the single authoritative schema for both scanner and in-session captures. Adding a new default field requires updating this section first, then the scanner and tests — never the reverse.
 
@@ -124,6 +130,7 @@ Write channels:
 - The scheduled scanner writes directly to `AgentKnowledge/Inbox/` or `AgentKnowledge/Daily/` files in the vault. Direct file write is the only supported channel for the scanner.
 - In-session captures may use the Obsidian MCP or Local REST API when available; otherwise they fall back to direct file write or output the candidate summary in the reply.
 - If no channel is reachable, output the candidate summary in the reply and do not write through another path.
+- Daily is a readable date index only. Do not write sessions with no assistant handling, fix, verification, or clear conclusion; Daily body must not include `source_key`, `session_id`, `obsidian-log-sync`, raw evidence ids, `会话ID`, `来源`, `你指出`, or `Agent 处理`.
 - Scanner and writer code must block old-schema candidates before writing to Obsidian. If output contains `type: agent-log-candidate`, `status: candidate`, `agent_load`, `domain: Inbox`, `contexts`, `sensitivity`, `secret_policy`, or `secret_refs: []`, fix the generator instead of letting the file through.
 
 ## Promotion Rules
@@ -134,3 +141,4 @@ Promote sparingly:
 - Put reusable procedures, tools, or references in `skills/personal-knowledge/` or another existing domain skill.
 - Do not promote one-off tasks, unverified guesses, private project facts, or sensitive operational details.
 - Do not make a candidate affect future agent behavior unless the user explicitly approves the rule or skill change.
+- Do not treat a current-session explicit rule correction as an Obsidian promotion; it is already user-approved rule hotfix work and should be verified through the rules test flow.

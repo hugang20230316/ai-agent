@@ -39,6 +39,6 @@ Machine-specific API hosts, repo paths, app names, credentials, sessions, and re
 - Do not use browser automation unless the configured APIs are unavailable and local policy allows a fallback.
 - Timeout results require one read-only Git provider or Argo CD status refresh before reporting final failure.
 
-## Shared Output
+## Output Contract
 
 Report the planned tag, final release tag, actual deployed tag, updated apps, unchanged apps, failed apps, and any timeout/status recheck performed.
