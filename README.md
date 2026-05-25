@@ -86,6 +86,8 @@ Shared custom skills are stored under `skills/`. Personal or explicitly maintain
 
 Codex and Claude can expose those shared skills through per-skill symlinks. Hermes should list each shared skill directory in `skills.external_dirs`. OpenClaw should list each shared skill directory in `skills.load.extraDirs`; workspace skill symlinks that resolve outside the workspace are rejected as `symlink-escape`.
 
+Machine-specific skill configuration stays local. Shared skill scripts should read local settings from `$CODEX_SKILL_CONFIG_DIR/<skill-name>.local.json`, `~/.codex/local/<skill-name>.local.json`, or the current repo's `.codex/local/<skill-name>.local.json`. Use `local-config-examples/` only as public templates.
+
 Cross-device notes:
 
 - `docs/agent-sync.md`: sync layout and installation notes

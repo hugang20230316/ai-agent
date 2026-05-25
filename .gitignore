@@ -44,13 +44,25 @@ rules/default.rules
 # Secrets and environment files
 .env
 .env.*
+*.env.txt
 *.local.json
+*.clixml
+*.key
+*.key.bin
+*.secret
+*.pem
+*.pfx
+*.p12
+*password*
 *token*
 *cookie*
 *secret*
 *credential*
+*session*.json
 scripts/publish/config.env
 scripts/publish/config.env.local
+config.env
+config.env.local
 
 # OS/editor noise
 .DS_Store
