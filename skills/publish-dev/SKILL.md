@@ -26,7 +26,7 @@ Machine-specific API hosts, repo paths, app names, credentials, sessions, and re
 3. Use default apps only as a fallback when the changed components cannot be mapped more specifically.
 4. Reuse any in-flight publish result instead of creating duplicate tags or duplicate syncs.
 5. Resolve or create the configured release tag through the Git provider API.
-6. Wait for the configured release pipeline/status gate.
+6. Wait for the configured release pipeline/status gate within the end-to-end publish command budget, not by adding independent full timeouts for each stage.
 7. Update only the configured deployment image tag through Argo CD APIs.
 8. Verify the final app tag and sync/health state before reporting success or failure.
 
@@ -36,6 +36,8 @@ Machine-specific API hosts, repo paths, app names, credentials, sessions, and re
 - Do not publish apps outside the configured scope.
 - Do not blindly publish the default apps when the change set points to different deployable components.
 - Preview/check mode must not create tags or sync apps.
+- When the user says optimization is limited to publishing, do not recommend GitLab, CI job, runner, or build-cache configuration changes as actionable fixes.
+- A publish command must not stretch a normal pipeline-duration release into multiple stage timeouts. Use status reuse, an end-to-end timeout budget, and read-only progress observation instead.
 - Do not use browser automation unless the configured APIs are unavailable and local policy allows a fallback.
 - Timeout results require one read-only Git provider or Argo CD status refresh before reporting final failure.
 

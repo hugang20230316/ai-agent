@@ -51,8 +51,10 @@ When a tracker URL or bug ID is present:
 3. Search the configured repository for the precise route, DTO, method, message, enum, field, or business key from the bug.
 4. Trace the shortest request chain that can prove the source by data timeline: visible symptom -> frontend/rendering entry -> service/API endpoint -> persisted data/logs -> upstream API -> first bad output, first bad transform, or blocked evidence.
 5. Query only the minimum data source needed to prove the root cause. Use configured MCP tools, logs, database queries, API calls, or read-only CLI checks when they are the direct evidence source.
+   - If the user asks to check logs or runtime evidence without naming an environment, treat the target as the test environment by default.
+   - For test environments, use TiDB and MongoDB MCP tools for logs or data evidence when those sources are configured and directly relevant.
    - For grey environments, Grafana is the only data evidence source when data lookup is needed. Do not use TiDB or MongoDB MCP for grey data.
-   - For test environments, use TiDB and MongoDB MCP tools when those databases are the direct evidence source.
+   - For online or production logs, use Grafana when log evidence is needed; if production data can only be queried by the user, follow the production SQL rules below.
    - When production data can only be queried by the user, provide one self-contained SQL script per request and consolidate related checks into that script when practical. Do not split into multiple scripts if one script can return the needed evidence.
    - If the user says production can run only one query or one statement at a time, provide exactly one directly executable SQL statement. Do not use variables, temporary tables, multiple result sets, or a bundled script. Wait for the result before giving the next statement.
 6. Do not call an API just because a URL exists. If code, logs, database rows, or user-provided response data already prove the point, avoid extra API calls. If API evidence is needed and a project API/services/upstream base URL is configured, choose the matching configured layer instead of browser/front-end routes that may disturb other users.
@@ -67,7 +69,8 @@ When a tracker URL or bug ID is present:
 
 ## Fix Workflow
 
-1. If the user asked to fix it, make the smallest code change and run the configured build or test command. For defects caused by stale persisted references, explicitly decide whether the fix is forward-only, data repair, read-side fallback, or a combination, and say which one was implemented.
+1. If the user asked to fix it, first identify the repair layer: network/client environment, DNS/proxy/VPN/certificate, gateway/routing, running service state, deployment/configuration, data, or code. Site access, connectivity, Swagger page, and URL reachability failures default to runtime/network repair; do not edit repository code or deployment configuration from that wording alone. If evidence points to code or deployment configuration and the latest user instruction has not explicitly authorized that write layer, state the evidence, exact write target, and impact, then wait for confirmation before editing.
+2. After code editing is explicitly authorized, make the smallest code change and run the configured build or test command. For defects caused by stale persisted references, explicitly decide whether the fix is forward-only, data repair, read-side fallback, or a combination, and say which one was implemented.
     - Before editing, define the broken behavior as a workflow, not as one method or endpoint. Trace the places that use the same business rule, especially writes, reads, display and downstream effects, and decide whether each place needs a change or only a recorded risk.
     - Before reporting the fix as complete, re-check the workflow from entry to persisted state and back through user-visible reads. If any related path is not checked, call it out as remaining risk instead of implying the bug is fully fixed.
     - If verification exposes another fixable failure in the same authorized bug workflow, continue fixing and rerun verification. Stop to ask only when the next action needs new authorization, destructive data changes, credentials, or evidence the agent cannot access.
@@ -77,10 +80,10 @@ When a tracker URL or bug ID is present:
     - After the user corrects business terminology, update all variable names, helper names, comments, and final explanations touched by the fix to use that terminology.
     - When a fix changes one branch of a connected decision chain, review adjacent branches, helper names, and comments in the same chain. Necessary alignment is in scope; unrelated cleanup is not.
     - Do not make users identify every missing comment one by one. When one missing comment is pointed out, review the whole changed block for the same issue.
-2. For destructive or data-changing bugs, scan same-class write paths first: deletes, updates, inserts, repository methods, consumers, and endpoints that mutate the same entity or persisted field. Treat read-only display or list paths as risks to mention, not automatic edit scope, unless they directly cause the reported bug or the user asks to change them.
-3. Use the user's corrected and evidence-confirmed business terminology in conclusions, comments, and variable names touched by the fix. Do not keep misleading generic terms.
-4. If the user only asked for analysis, stop after root cause, evidence, impact, and proposed fix. Do not edit files, start implementation work, or treat "look at this" as permission to patch code.
-5. Before reporting the fix, scan the diff for unrelated formatting, whitespace, comments, renamed symbols, or files outside the bug scope. Revert your own unrelated edits and call out pre-existing unrelated edits separately.
+3. For destructive or data-changing bugs, scan same-class write paths first: deletes, updates, inserts, repository methods, consumers, and endpoints that mutate the same entity or persisted field. Treat read-only display or list paths as risks to mention, not automatic edit scope, unless they directly cause the reported bug or the user asks to change them.
+4. Use the user's corrected and evidence-confirmed business terminology in conclusions, comments, and variable names touched by the fix. Do not keep misleading generic terms.
+5. If the user only asked for analysis, stop after root cause, evidence, impact, and proposed fix. Do not edit files, start implementation work, or treat "look at this" as permission to patch code.
+6. Before reporting the fix, scan the diff for unrelated formatting, whitespace, comments, renamed symbols, or files outside the bug scope. Revert your own unrelated edits and call out pre-existing unrelated edits separately.
 
 ## Skill Regression Gate
 

@@ -46,6 +46,8 @@ The scanner uses `source` to tag candidates and `session_id` (derived from the J
 
 Current-session rule corrections are a separate hotfix path, not candidate promotion. If the user explicitly says a rule missed, a rule is hard-coded, the same rule failure repeated, or the rule category is wrong, follow project-governance hotfix rules first; optionally capture the failure mode and verification result as an Obsidian candidate after the rule change.
 
+AI must decide candidate `domain`, `tags`, `related_issues`, `pattern_candidate`, home link, and orphan/repeat judgement from evidence. Do not create human tasks asking the user to review those fields, or to decide whether an item should become a rule, skill, or formal knowledge by default. Human review is reserved for explicit approval actions such as approve, archive, delete, merge, or a separate confirmed promotion to rules/skills.
+
 ## Candidate Body
 
 Keep candidate entries short and readable, but do not drop key meaning, evidence, sources, or validation boundaries.
@@ -57,7 +59,7 @@ Keep candidate entries short and readable, but do not drop key meaning, evidence
 - `解决方案`: what changed or should change
 - `验证情况`: what was verified and what remains unverified
 - `关联判断`: home domain, confirmed related notes, suspected pattern, orphan/repeat judgement
-- `待处理`: review checklist or follow-up items
+- `待处理`: concrete human decisions or system follow-ups only. Write `无人工待办。归宿、标签和关联判断已由生成器根据证据写入。` when there is no real follow-up.
 
 Do not attach full chat, full command output, oversized logs, oversized interface responses, screenshots, or browser sessions as the body of the note.
 
@@ -106,6 +108,8 @@ Use short Chinese `tags` inferred from the session. Field names may stay English
 
 Use `related_issues` for confirmed related notes and `pattern_candidate` for a human-readable suspected pattern. Do not use `repeat_key` or `repeat_count`; repeated issues are too fuzzy for a stable key in the default log format.
 
+The generator must fill `domain`, `tags`, `related_issues`, and `pattern_candidate` itself from available evidence. Empty related notes are acceptable only when the body explains the search basis; do not turn missing relations into a human review checkbox.
+
 In `关联判断`, link the home domain to a semantic hub page such as `[[01-Agent工作台/01-Agent工作台|01-Agent工作台]]`. Do not link candidate logs to directory `README.md` files as their home; README links make Obsidian Graph centrality reflect folder documentation instead of meaningful knowledge domains.
 
 Only when the user explicitly corrects, complains, gets angry, insults, or otherwise gives a high-value feedback signal, add:
@@ -142,3 +146,4 @@ Promote sparingly:
 - Do not promote one-off tasks, unverified guesses, private project facts, or sensitive operational details.
 - Do not make a candidate affect future agent behavior unless the user explicitly approves the rule or skill change.
 - Do not treat a current-session explicit rule correction as an Obsidian promotion; it is already user-approved rule hotfix work and should be verified through the rules test flow.
+- When the current session already changed rules or skills, record the changed files, behavior boundary, and verification state if useful; do not ask again whether the same issue should be promoted.

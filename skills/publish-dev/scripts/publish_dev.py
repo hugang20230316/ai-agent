@@ -63,6 +63,27 @@ def utc_iso(value: datetime | None = None) -> str:
     return (value or utc_now()).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def elapsed_seconds_since(started_at: datetime) -> int:
+    return max(int((utc_now() - started_at).total_seconds()), 0)
+
+
+def seconds_until(deadline: datetime) -> int:
+    return max(int((deadline - utc_now()).total_seconds()), 0)
+
+
+def report_progress(args: argparse.Namespace, message: str) -> None:
+    if getattr(args, "quiet", False) or getattr(args, "format", "") != "json":
+        return
+    print(message, file=sys.stderr, flush=True)
+
+
+def config_int(name: str, default: int) -> int:
+    value = PUBLISH_CONFIG.get(name)
+    if value in (None, ""):
+        return default
+    return int(value)
+
+
 def parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -394,8 +415,15 @@ def gitlab_pipeline_status(connection: GitLabConnection, tag: str) -> dict[str, 
     }
 
 
-def wait_gitlab_latest_release_tag_passed(connection: GitLabConnection, timeout_seconds: int, poll_interval_seconds: int) -> dict[str, Any]:
-    deadline = utc_now() + timedelta(seconds=timeout_seconds)
+def wait_gitlab_latest_release_tag_passed(
+    connection: GitLabConnection,
+    timeout_seconds: int,
+    poll_interval_seconds: int,
+    *,
+    args: argparse.Namespace | None = None,
+) -> dict[str, Any]:
+    started_at = utc_now()
+    deadline = started_at + timedelta(seconds=timeout_seconds)
     observations: list[dict[str, str]] = []
     while utc_now() < deadline:
         latest = gitlab_latest_release_tag(connection)
@@ -409,6 +437,14 @@ def wait_gitlab_latest_release_tag_passed(connection: GitLabConnection, timeout_
                 "pipeline": pipeline["id"] if pipeline else "",
             }
         )
+        if args:
+            report_progress(
+                args,
+                "GitLab pipeline "
+                f"tag={latest['latestTag']} status={normalized} "
+                f"pipeline={pipeline['id'] if pipeline else ''} "
+                f"elapsed={elapsed_seconds_since(started_at)}s remaining={seconds_until(deadline)}s",
+            )
         if normalized == "passed":
             return {
                 "latestTag": latest["latestTag"],
@@ -416,10 +452,13 @@ def wait_gitlab_latest_release_tag_passed(connection: GitLabConnection, timeout_
                 "pipelineStatus": normalized,
                 "pipelineId": pipeline["id"] if pipeline else "",
                 "observations": observations,
+                "startedAt": utc_iso(started_at),
+                "finishedAt": utc_iso(),
+                "elapsedSeconds": elapsed_seconds_since(started_at),
             }
         if normalized in {"failed", "canceled", "skipped", "none"}:
             raise RuntimeError(f"最新 tag {latest['latestTag']} 的流水线状态为 {normalized}，停止发布")
-        time.sleep(poll_interval_seconds)
+        time.sleep(min(poll_interval_seconds, max(seconds_until(deadline), 1)))
     raise RuntimeError(f"最新 tag 流水线在 {timeout_seconds} 秒内仍未通过")
 
 
@@ -711,8 +750,19 @@ def start_argocd_sync(base_url: str, token: str, name: str, project: str | None)
     argocd_request("POST", base_url, f"/api/v1/applications/{encoded_name}/sync{query}", headers=argocd_auth_headers(token), body={})
 
 
-def wait_argocd_sync(base_url: str, token: str, name: str, project: str | None, timeout_seconds: int, poll_interval_seconds: int, sync_requested_at_utc: datetime) -> dict[str, Any]:
-    deadline = utc_now() + timedelta(seconds=timeout_seconds)
+def wait_argocd_sync(
+    base_url: str,
+    token: str,
+    name: str,
+    project: str | None,
+    timeout_seconds: int,
+    poll_interval_seconds: int,
+    sync_requested_at_utc: datetime,
+    *,
+    args: argparse.Namespace | None = None,
+) -> dict[str, Any]:
+    wait_started_at = utc_now()
+    deadline = wait_started_at + timedelta(seconds=timeout_seconds)
     observed_requested_operation = False
     while True:
         application = argocd_application(base_url, token, name, project)
@@ -726,22 +776,34 @@ def wait_argocd_sync(base_url: str, token: str, name: str, project: str | None, 
         health_status = str(health_obj.get("status", ""))
         phase = str((operation_state or {}).get("phase", ""))
         message = str((operation_state or {}).get("message", ""))
-        started_at = parse_datetime((operation_state or {}).get("startedAt"))
+        operation_started_at = parse_datetime((operation_state or {}).get("startedAt"))
         finished_at = parse_datetime((operation_state or {}).get("finishedAt"))
         latest_history = history_items[-1] if history_items else None
         history_started_at = parse_datetime((latest_history or {}).get("deployStartedAt"))
 
-        fresh_operation = started_at and started_at >= sync_requested_at_utc - timedelta(seconds=5)
+        fresh_operation = operation_started_at and operation_started_at >= sync_requested_at_utc - timedelta(seconds=5)
         fresh_finished_operation = finished_at and finished_at >= sync_requested_at_utc - timedelta(seconds=5)
         fresh_history = history_started_at and history_started_at >= sync_requested_at_utc - timedelta(seconds=5)
 
         if not operation_state and top_level_operation:
             observed_requested_operation = True
-            time.sleep(poll_interval_seconds)
+            if args:
+                report_progress(
+                    args,
+                    f"ArgoCD app={name} operation=requested elapsed={elapsed_seconds_since(wait_started_at)}s remaining={seconds_until(deadline)}s",
+                )
+            time.sleep(min(poll_interval_seconds, max(seconds_until(deadline), 1)))
             continue
 
         if fresh_operation or fresh_finished_operation or fresh_history:
             observed_requested_operation = True
+
+        if args:
+            report_progress(
+                args,
+                f"ArgoCD app={name} sync={sync_status} health={health_status} phase={phase} "
+                f"elapsed={elapsed_seconds_since(wait_started_at)}s remaining={seconds_until(deadline)}s",
+            )
 
         if (observed_requested_operation or fresh_operation or fresh_finished_operation or fresh_history) and phase == "Succeeded" and sync_status == "Synced":
             return {
@@ -753,6 +815,7 @@ def wait_argocd_sync(base_url: str, token: str, name: str, project: str | None, 
                 "finishedAt": (operation_state or {}).get("finishedAt"),
                 "historyId": (latest_history or {}).get("id"),
                 "deployedAt": (latest_history or {}).get("deployedAt"),
+                "elapsedSeconds": elapsed_seconds_since(wait_started_at),
             }
 
         if (fresh_operation or fresh_finished_operation) and phase in {"Failed", "Error"}:
@@ -760,12 +823,13 @@ def wait_argocd_sync(base_url: str, token: str, name: str, project: str | None, 
 
         if utc_now() >= deadline:
             break
-        time.sleep(poll_interval_seconds)
+        time.sleep(min(poll_interval_seconds, max(seconds_until(deadline), 1)))
 
     raise RuntimeError(f"应用 {name} 在 {timeout_seconds} 秒内未完成同步")
 
 
-def argocd_publish(args: argparse.Namespace, target_tag: str) -> dict[str, Any]:
+def argocd_publish(args: argparse.Namespace, target_tag: str, *, deadline: datetime | None = None) -> dict[str, Any]:
+    started_at = utc_now()
     session = get_argocd_access_token(args)
     token = session["token"]
     if args.apps:
@@ -786,11 +850,12 @@ def argocd_publish(args: argparse.Namespace, target_tag: str) -> dict[str, Any]:
     no_change: list[dict[str, Any]] = []
     planned_updates: list[dict[str, Any]] = []
     failed: list[dict[str, Any]] = []
-    stage_deadline = utc_now() + timedelta(seconds=args.sync_timeout_seconds)
+    sync_deadline = utc_now() + timedelta(seconds=args.sync_timeout_seconds)
+    stage_deadline = min(sync_deadline, deadline) if deadline else sync_deadline
 
     for app_name in resolved_apps:
         try:
-            remaining_sync_seconds = max(int((stage_deadline - utc_now()).total_seconds()), 0)
+            remaining_sync_seconds = seconds_until(stage_deadline)
             if not args.what_if and remaining_sync_seconds <= 0:
                 failed.append({"appName": app_name, "reason": f"ArgoCD 发布阶段超过 {args.sync_timeout_seconds} 秒，停止继续等待后续应用"})
                 continue
@@ -801,6 +866,7 @@ def argocd_publish(args: argparse.Namespace, target_tag: str) -> dict[str, Any]:
                 failed.append({"appName": app_name, "reason": "未找到 PARAMETERS 里的 image.tag"})
                 continue
             if tag_state["currentTag"] == target_tag:
+                report_progress(args, f"ArgoCD app={app_name} already-target tag={target_tag}")
                 no_change.append(
                     {
                         "appName": app_name,
@@ -825,9 +891,14 @@ def argocd_publish(args: argparse.Namespace, target_tag: str) -> dict[str, Any]:
 
             sync_requested_at = utc_now()
             poll_interval = min(5, max(1, remaining_sync_seconds))
+            report_progress(
+                args,
+                f"ArgoCD app={app_name} update image.tag {tag_state['currentTag']} -> {target_tag} "
+                f"remaining={remaining_sync_seconds}s",
+            )
             set_argocd_image_tag(args.base_url, token, application, tag_state, target_tag, args.project)
             start_argocd_sync(args.base_url, token, app_name, args.project)
-            sync_state = wait_argocd_sync(args.base_url, token, app_name, args.project, remaining_sync_seconds, poll_interval, sync_requested_at)
+            sync_state = wait_argocd_sync(args.base_url, token, app_name, args.project, remaining_sync_seconds, poll_interval, sync_requested_at, args=args)
             updated_and_synced.append(
                 {
                     "appName": app_name,
@@ -837,6 +908,7 @@ def argocd_publish(args: argparse.Namespace, target_tag: str) -> dict[str, Any]:
                     "healthStatus": sync_state["healthStatus"],
                     "phase": sync_state["phase"],
                     "finishedAt": sync_state["finishedAt"],
+                    "elapsedSeconds": sync_state["elapsedSeconds"],
                 }
             )
         except Exception as exc:  # noqa: BLE001
@@ -856,6 +928,7 @@ def argocd_publish(args: argparse.Namespace, target_tag: str) -> dict[str, Any]:
         "noChange": no_change,
         "plannedUpdates": planned_updates,
         "failed": failed,
+        "elapsedSeconds": elapsed_seconds_since(started_at),
     }
 
 
@@ -909,6 +982,7 @@ def plan_to_text(plan: dict[str, Any]) -> str:
 
 
 def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
+    started_at = utc_now()
     resolve_args = argparse.Namespace(**vars(args))
     plan = resolve_publish_plan(resolve_args)
     connection: GitLabConnection = plan.pop("_connection")
@@ -917,6 +991,12 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
     lock_path = state_dir / "publish-dev.lock.json"
     result_path = state_dir / "publish-dev.last-result.json"
     lock_token = os.urandom(8).hex()
+    total_timeout_seconds = args.total_timeout_seconds or config_int(
+        "totalTimeoutSeconds",
+        max(args.gitlab_wait_timeout_seconds, args.sync_timeout_seconds),
+    )
+    total_deadline = started_at + timedelta(seconds=total_timeout_seconds)
+    report_progress(args, f"Publish start scope={args.scope} tag={plan['effectiveTag']} totalTimeout={total_timeout_seconds}s")
 
     if not args.what_if:
         while True:
@@ -924,20 +1004,34 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                 existing_lock = read_json_file(lock_path)
                 if existing_lock and existing_lock.get("processId"):
                     try:
-                        os.kill(int(existing_lock["processId"]), 0)
-                        timeout_seconds = max(args.gitlab_wait_timeout_seconds, args.sync_timeout_seconds) + 60
-                        deadline = time.time() + timeout_seconds
-                        while time.time() < deadline:
+                        existing_pid = int(existing_lock["processId"])
+                        os.kill(existing_pid, 0)
+                        existing_started_at = parse_datetime(str(existing_lock.get("startedAt") or "")) or started_at
+                        existing_total_timeout_seconds = int(existing_lock.get("totalTimeoutSeconds") or total_timeout_seconds)
+                        existing_deadline = existing_started_at + timedelta(seconds=existing_total_timeout_seconds)
+                        join_deadline = min(total_deadline, existing_deadline)
+                        report_progress(
+                            args,
+                            f"Publish join existing process={existing_pid} remaining={seconds_until(join_deadline)}s",
+                        )
+                        while utc_now() < join_deadline:
+                            if result_path.exists():
+                                existing_result = read_json_file(result_path)
+                                if existing_result:
+                                    return existing_result
                             try:
-                                os.kill(int(existing_lock["processId"]), 0)
-                                time.sleep(5)
+                                os.kill(existing_pid, 0)
+                                time.sleep(min(5, max(seconds_until(join_deadline), 1)))
                             except OSError:
                                 break
                         if result_path.exists():
                             existing_result = read_json_file(result_path)
                             if existing_result:
                                 return existing_result
-                        raise RuntimeError(f"检测到已有发布进程 {existing_lock['processId']} 已完成，但没有产出结果文件，停止重复发布")
+                        raise RuntimeError(
+                            f"检测到已有发布进程 {existing_pid}，但已超过可等待预算。"
+                            f"原发布预算 {existing_total_timeout_seconds} 秒，当前命令预算 {total_timeout_seconds} 秒，停止重复发布"
+                        )
                     except OSError:
                         lock_path.unlink(missing_ok=True)
                         continue
@@ -947,7 +1041,14 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
             result_path.unlink(missing_ok=True)
             write_json_file(
                 lock_path,
-                {"token": lock_token, "processId": os.getpid(), "repoPath": plan["repoPath"], "scope": args.scope, "startedAt": utc_iso()},
+                {
+                    "token": lock_token,
+                    "processId": os.getpid(),
+                    "repoPath": plan["repoPath"],
+                    "scope": args.scope,
+                    "startedAt": utc_iso(started_at),
+                    "totalTimeoutSeconds": total_timeout_seconds,
+                },
             )
             stored = read_json_file(lock_path)
             if stored and stored.get("token") == lock_token:
@@ -962,19 +1063,27 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                 "latestTagCommit": plan["sourceCommit"] if plan["shouldCreateTag"] else plan["latestTagCommit"],
                 "pipelineStatus": "not-started" if plan["shouldCreateTag"] else "passed",
                 "pipelineId": "",
+                "elapsedSeconds": 0,
             }
             final_tag = wait_result["latestTag"]
             switch_reason = ""
         else:
             create_action = gitlab_create_tag(connection, plan["nextTag"], plan["sourceCommit"], plan["tagDescription"])["action"] if plan["shouldCreateTag"] else "skipped"
-            wait_result = wait_gitlab_latest_release_tag_passed(connection, args.gitlab_wait_timeout_seconds, args.gitlab_poll_interval_seconds)
+            gitlab_wait_seconds = min(args.gitlab_wait_timeout_seconds, seconds_until(total_deadline))
+            if gitlab_wait_seconds <= 0:
+                raise RuntimeError(f"发布命令总耗时超过 {total_timeout_seconds} 秒，未进入 GitLab 等待阶段")
+            wait_result = wait_gitlab_latest_release_tag_passed(connection, gitlab_wait_seconds, args.gitlab_poll_interval_seconds, args=args)
             final_tag = wait_result["latestTag"]
             switch_reason = f"GitLab 等待期间检测到更新的最新 tag，发布目标自动切换为 {final_tag}" if final_tag != plan["effectiveTag"] else ""
 
-        argocd_result = argocd_publish(args, final_tag)
+        if not args.what_if and seconds_until(total_deadline) <= 0:
+            raise RuntimeError(f"发布命令总耗时超过 {total_timeout_seconds} 秒，未进入 ArgoCD 同步阶段")
+        argocd_result = argocd_publish(args, final_tag, deadline=total_deadline if not args.what_if else None)
         result = {
             "scope": args.scope,
             "whatIf": bool(args.what_if),
+            "elapsedSeconds": elapsed_seconds_since(started_at),
+            "totalTimeoutSeconds": total_timeout_seconds,
             "plan": {
                 key: plan[key]
                 for key in [
@@ -995,6 +1104,7 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                 "pipelineStatus": wait_result["pipelineStatus"],
                 "pipelineId": wait_result["pipelineId"],
                 "switchReason": switch_reason,
+                "elapsedSeconds": wait_result.get("elapsedSeconds", 0),
             },
             "argocd": argocd_result,
         }
@@ -1051,6 +1161,8 @@ def build_parser() -> argparse.ArgumentParser:
     publish_parser.add_argument("-GitLabWaitTimeoutSeconds", "--gitlab-wait-timeout-seconds", type=int, default=300)
     publish_parser.add_argument("-GitLabPollIntervalSeconds", "--gitlab-poll-interval-seconds", type=int, default=15)
     publish_parser.add_argument("-SyncTimeoutSeconds", "--sync-timeout-seconds", type=int, default=300)
+    publish_parser.add_argument("-TotalTimeoutSeconds", "--total-timeout-seconds", type=int, default=0)
+    publish_parser.add_argument("-Quiet", "--quiet", action="store_true")
     publish_parser.add_argument("-WhatIf", "--what-if", action="store_true")
     publish_parser.set_defaults(handler=handle_publish)
 
