@@ -43,4 +43,4 @@ Machine-specific API hosts, repo paths, app names, credentials, sessions, and re
 
 ## Output Contract
 
-Report the planned tag, final release tag, actual deployed tag, updated apps, unchanged apps, failed apps, and any timeout/status recheck performed.
+Any final publish success/failure summary must report the planned tag, final release tag, actual deployed tag, updated apps, unchanged apps, failed apps, and any timeout/status recheck performed, even after multi-turn status updates. When a publish command actually runs, also report the total publish elapsed time. Prefer the publish command's `elapsedSeconds`; if it is unavailable, report the measured wall-clock time and name that source. For preview-only resolve-plan output, state that no publish was executed and do not invent a publish elapsed time.

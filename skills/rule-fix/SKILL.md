@@ -26,7 +26,11 @@ Do not treat rule changes as ordinary Markdown edits. The goal is to change beha
    - Classify the failure as trigger, loading, conflict, validation, or missing rule.
    - Prefer fixing an existing rule over adding another rule.
 
-4. **Show the edit plan before writing**
+4. **Review the candidate before approval**
+   - Before asking the user to approve a rule draft or rule-fix write plan, run `multi-agent-workflow` with real isolated subagents to review the proposed rule for brevity, trigger reliability, clarity, duplication, conflicts, and hardcoded incident residue.
+   - Fix and re-review blocking findings; if real isolated subagents are unavailable, do not simulate them and report the blocker instead of asking approval of an unreviewed draft.
+
+5. **Show the edit plan before writing**
    - List every file you intend to change.
    - For each file, state the purpose and the planned change.
    - State the related rules, skills, AGENTS files, docs, or config you will not change and why.
@@ -35,23 +39,23 @@ Do not treat rule changes as ordinary Markdown edits. The goal is to change beha
    - Wait for user approval before modifying files, unless the user has already approved that exact plan.
    - A generic "continue" only approves writing when it directly follows an exact plan; otherwise continue diagnosis or planning without edits.
 
-5. **Write the smallest rule change**
+6. **Write the smallest rule change**
    - Keep rules short and reusable.
    - Do not write project names, one-off field names, endpoint names, people names, local paths, credentials, or tool-specific hacks into public rules.
    - If the rule belongs in a personal skill, place the source under `ai-agent/skills/<skill-name>/`; tool-side skill directories should be symlinks or config references.
 
-6. **Self-check the diff**
+7. **Self-check the diff**
    - Check `git diff --stat` and the relevant file diffs.
    - Verify no unrelated formatting, duplicate rules, conflicting rules, hardcoded scenario residue, or unnecessary files were added.
    - Verify `SKILL.md` stays concise; move long matrices to `references/`.
 
-7. **Run isolated validation**
+8. **Run isolated validation**
    - Use `multi-agent-workflow`.
    - Spawn real subagents with `fork_context: false`; same-chat roleplay does not count.
    - Give validators only the minimal rule text, scenario prompts, and output contract needed for validation.
    - Follow `references/validation-matrix.md`.
 
-8. **Fix and revalidate**
+9. **Fix and revalidate**
    - If validation finds a defect and the change is still in scope, fix it and rerun the failed scenarios.
    - Final status must separate facts, inferences, validation evidence, and uncovered risk.
 

@@ -20,6 +20,7 @@
 @rules/openclaw-rules.md
 @rules/hermes-rules.md
 @rules/project-governance.md
+@rules/evidence-output-rules.md
 @rules/mcp-output-rules.md
 @rules/research-rules.md
 @rules/requirements-and-prototype.md
@@ -40,7 +41,8 @@
 - 涉及 OpenClaw 配置、SOUL、workspace、skills 或 OpenClaw 运行行为时，读取 `@rules/openclaw-rules.md`。
 - 涉及 Hermes 配置、SOUL、AGENTS、rules、skills、CLI、Dashboard、Gateway、MCP、cron 或 Hermes 运行行为时，读取 `@rules/hermes-rules.md`。
 - 涉及个人规则仓库、项目规则分层、同步设计、文件归类或规则沉淀时，读取 `@rules/project-governance.md`。
-- 涉及 MCP、工具输出、命令结果整理、日志或长输出摘要时，读取 `@rules/mcp-output-rules.md`。
+- 涉及工具输出、命令结果整理、日志、数据源查询、接口请求、接口排查、接口验证、联调参数、请求/响应比对、证据输出或长输出摘要时，读取 `@rules/evidence-output-rules.md`。
+- 涉及 MCP 选择、MCP 调用、MCP 兜底、MCP 资源或连接来源时，读取 `@rules/mcp-output-rules.md`；若同时涉及查询结果呈现，也按 `@rules/evidence-output-rules.md` 执行。
 - 涉及找资料、找方案、主流方案、推荐、选型、竞品/同类对比、技术调研、市场调研、资料综述或需要判断“什么更主流/更合适”时，读取 `@rules/research-rules.md`。
 - 涉及需求、原型、PRD、验收标准、页面交互或产品说明时，读取 `@rules/requirements-and-prototype.md`。
 - 涉及记录、总结、沉淀、复盘、写入 Obsidian、个人日志、知识库、规则候选或 skill 候选时，读取 `@rules/personal-knowledge-rules.md`。

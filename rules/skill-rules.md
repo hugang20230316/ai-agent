@@ -31,7 +31,7 @@
 - 命中 bug skill 后，在读取 `SKILL.md` 和本机项目配置前，不得调用用户给出的接口、不得临时改用相似地址、不得只凭截图给建议。需要接口证据时，必须按 bug skill 和项目本机配置选择正确层级。
 - 如果 bug skill 与 investigate 同时匹配，bug skill 为主 skill；investigate 只能作为追链方法补充，不能替代 bug skill 的触发、证据字段和输出门槛。
 - 命中 bug skill 后，接口调用、字段完整性、证据采集、数据时间线、根因证明、测试地址使用、配置持久化和最终输出门槛均按 `bug/SKILL.md` 执行；本文件只负责触发路由、主 skill 选择和不要降级处理，不重复规定字段示例、接口证据格式或配置沉淀策略。
-- 非 bug 的普通 MCP、日志或 API 查询输出按 `mcp-output-rules.md` 执行；若同时命中 bug skill，以 `bug/SKILL.md` 为主，`mcp-output-rules.md` 只补充结果展示和脱敏原则。
+- 非 bug 的日志、API、数据源、命令或工具查询输出按 `evidence-output-rules.md` 执行；涉及 MCP 选择、调用、兜底或连接来源时再叠加 `mcp-output-rules.md`。若同时命中 bug skill，以 `bug/SKILL.md` 为主，`evidence-output-rules.md` 只补充结果展示和脱敏原则。
 - 用户点名具体平台或工具时，优先命中该平台的专用排查 skill 和对应规则；例如 OpenClaw 问题同时遵循 OpenClaw 专用规则。
 - 用户要求 review、QA、harness、eval、benchmark 或安全审计时，优先命中对应专用 skill；不要把所有问题都降级成通用排查。
 - 用户只说“查日志”“排查日志”或“看日志”但没有说明环境时，若项目规则、本机配置或长期约定已有测试环境日志/数据源，默认按测试环境处理，使用项目配置的数据源 MCP 或测试环境数据源；若没有默认环境证据，先确认环境；不能把“日志”本身当成 Grafana 触发条件。
