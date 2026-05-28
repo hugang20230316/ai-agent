@@ -13,10 +13,10 @@ Use the single Python entry point from this skill directory:
 python3 scripts/grafana.py doctor
 python3 scripts/grafana.py ensure-session
 python3 scripts/grafana.py query-logs -App <app> -Query "<query>"
-python3 scripts/grafana.py analyze-workguid -WorkGuid <work-guid>
 ```
 
 Machine-specific Grafana hosts, saved view identifiers, browser sessions, credentials, and local state paths must come from local config, environment variables, or explicit CLI arguments. Do not add platform-specific skill files or wrapper scripts.
+Project-specific app mappings, business identifiers, log patterns, call chains, and incident timelines belong in that project's own config or rules, not in this shared Grafana skill.
 
 ## Shared Workflow
 

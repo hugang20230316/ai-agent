@@ -11,6 +11,8 @@ Use one skill for all personal knowledge work. Do not create separate knowledge 
 
 Follow the active personal knowledge, privacy, skill, and project-governance rules before writing or promoting anything.
 
+For the current Obsidian vault layout, read `references/obsidian-structure.md` before changing vault structure, write paths, templates, Base views, or Canvas workspaces. If the reference does not exist yet, create it as part of the initial structure documentation or the structure change.
+
 ## Subfunctions
 
 | Subfunction | Use When | Result |
@@ -24,14 +26,14 @@ Follow the active personal knowledge, privacy, skill, and project-governance rul
 
 ## CLI Sources
 
-This skill covers four CLIs. Each has its own session log location used by the scheduled scanner; the in-session capture flow is identical.
+This skill can cover multiple agent CLIs. Each source has its own session log location declared by local private config, environment variables, or the scheduler; the in-session capture flow is identical.
 
-| Source | In-session capture | Session log root for the scanner |
+| Source | In-session capture | Scanner log source |
 | --- | --- | --- |
-| `codex` | Codex CLI | `~/.codex/sessions/` |
-| `claude` | Claude Code | `~/.claude/projects/-Users-hugang/*.jsonl` |
-| `hermes` | Hermes | `$HERMES_HOME/sessions/` |
-| `openclaw` | OpenClaw | `~/.claude/projects/-private-*-openclaw-*/*.jsonl` |
+| `codex` | Codex CLI | Local private config |
+| `claude` | Claude Code | Local private config |
+| `hermes` | Hermes | Local private config |
+| `openclaw` | OpenClaw | Local private config |
 
 The scanner uses `source` to tag candidates and `session_id` (derived from the JSONL filename) to deduplicate against earlier scans and against Claude auto-memory.
 
@@ -136,6 +138,12 @@ Write channels:
 - If no channel is reachable, output the candidate summary in the reply and do not write through another path.
 - Daily is a readable date index only. Do not write sessions with no assistant handling, fix, verification, or clear conclusion; Daily body must not include `source_key`, `session_id`, `obsidian-log-sync`, raw evidence ids, `会话ID`, `来源`, `你指出`, or `Agent 处理`.
 - Scanner and writer code must block old-schema candidates before writing to Obsidian. If output contains `type: agent-log-candidate`, `status: candidate`, `agent_load`, `domain: Inbox`, `contexts`, `sensitivity`, `secret_policy`, or `secret_refs: []`, fix the generator instead of letting the file through.
+
+## Vault Structure Maintenance
+
+Keep the vault structure reference in `references/obsidian-structure.md` in sync with structural changes. Update it when changing `AgentKnowledge` top-level layout, the five business domains, `Inbox`, `Daily`, `Templates`, Base views, Canvas workspaces, template files, or supported write paths.
+
+Do not update the structure reference for ordinary candidate notes, daily index pages, or single knowledge notes inside a business domain.
 
 ## Promotion Rules
 

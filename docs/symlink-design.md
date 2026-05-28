@@ -5,7 +5,7 @@
 ## 目标
 
 - `ai-agent/rules/*.md` 是公共规则唯一来源。
-- `ai-agent/skills/<skill-name>/` 是个人自建或明确个人维护 skill 的唯一来源。
+- `ai-agent/skills/<skill-name>/` 是共享托管 skill 的唯一来源。
 - Codex 修改 `~/.codex/rules/*.md` 时，实际修改 `ai-agent/rules/*.md`。
 - 只软链接明确托管的文件或 skill；不软链接整个工具目录。
 - `default.rules`、本机 local 配置、缓存、会话、日志和凭据保持本机私有。
@@ -62,7 +62,9 @@ Codex 侧的目标状态：
 
 Skill 也只链接明确托管的目录，不链接整个 `~/.codex/skills`。Codex 的 skill 目录里混有系统 skill、插件 skill、缓存和本机安装态，整体纳入 Git 会污染公共仓库。
 
-当前托管这些个人 skill：
+Skill 默认不自动启用。不同成员所在公司、项目和工具链不同，`bug`、`grafana`、`publish-dev`、`hg-git` 等 skill 可能依赖各自的本机配置或仓库权限。新机器先接入公共规则，再按需选择 skill。
+
+当前托管这些 skill：
 
 - `bug`
 - `grafana`
@@ -71,8 +73,10 @@ Skill 也只链接明确托管的目录，不链接整个 `~/.codex/skills`。Co
 - `personal-knowledge`
 - `publish-dev`
 - `requirements-organizer`
+- `rule-fix`
+- `tutorial-writer`
 
-后续如果要把 `brainstorming`、`writing-plans`、`verification-before-completion` 等流程类 skill 也纳入个人维护，需要先检查来源和许可，再加入托管清单。
+后续如果要把 `brainstorming`、`writing-plans`、`verification-before-completion` 等流程类 skill 也纳入共享托管，需要先检查来源和许可，再加入托管清单。
 
 目标状态：
 
@@ -84,6 +88,8 @@ Skill 也只链接明确托管的目录，不链接整个 `~/.codex/skills`。Co
 ~/.codex/skills/multi-agent-workflow -> <ai-agent>/skills/multi-agent-workflow
 ~/.codex/skills/personal-knowledge -> <ai-agent>/skills/personal-knowledge
 ~/.codex/skills/requirements-organizer -> <ai-agent>/skills/requirements-organizer
+~/.codex/skills/rule-fix -> <ai-agent>/skills/rule-fix
+~/.codex/skills/tutorial-writer -> <ai-agent>/skills/tutorial-writer
 
 ~/.claude/skills/bug -> <ai-agent>/skills/bug
 ~/.claude/skills/grafana -> <ai-agent>/skills/grafana
@@ -92,11 +98,13 @@ Skill 也只链接明确托管的目录，不链接整个 `~/.codex/skills`。Co
 ~/.claude/skills/personal-knowledge -> <ai-agent>/skills/personal-knowledge
 ~/.claude/skills/publish-dev -> <ai-agent>/skills/publish-dev
 ~/.claude/skills/requirements-organizer -> <ai-agent>/skills/requirements-organizer
+~/.claude/skills/rule-fix -> <ai-agent>/skills/rule-fix
+~/.claude/skills/tutorial-writer -> <ai-agent>/skills/tutorial-writer
 ~/.hermes/config.yaml skills.external_dirs includes each <ai-agent>/skills/<managed-skill>
 ~/.hermes/profiles/<profile>/config.yaml skills.external_dirs includes each <ai-agent>/skills/<managed-skill>
 ```
 
-OpenClaw 不使用 `~/.openclaw/workspace/skills/<managed-skill>` 软链接。OpenClaw 会拒绝解析到 workspace 外部的 skill 软链接，并把它标记为 `symlink-escape`。OpenClaw 个人 skill 通过 `~/.openclaw/openclaw.json` 的 `skills.load.extraDirs` 逐个加入，并把 skill 名加入需要使用它的 agent allowlist。
+OpenClaw 不使用 `~/.openclaw/workspace/skills/<managed-skill>` 软链接。OpenClaw 会拒绝解析到 workspace 外部的 skill 软链接，并把它标记为 `symlink-escape`。OpenClaw 托管 skill 通过 `~/.openclaw/openclaw.json` 的 `skills.load.extraDirs` 逐个加入，并把 skill 名加入需要使用它的 agent allowlist。
 
 OpenClaw 目标配置形态：
 
@@ -111,7 +119,9 @@ OpenClaw 目标配置形态：
         "<ai-agent>/skills/multi-agent-workflow",
         "<ai-agent>/skills/personal-knowledge",
         "<ai-agent>/skills/publish-dev",
-        "<ai-agent>/skills/requirements-organizer"
+        "<ai-agent>/skills/requirements-organizer",
+        "<ai-agent>/skills/rule-fix",
+        "<ai-agent>/skills/tutorial-writer"
       ]
     }
   }
@@ -119,6 +129,21 @@ OpenClaw 目标配置形态：
 ```
 
 ## 安装流程
+
+先运行只读检查：
+
+```bash
+python3 scripts/doctor.py
+```
+
+需要生成链接命令时，先用 `--print-only` 查看计划：
+
+```bash
+python3 scripts/setup_links.py --tool codex --rules --print-only
+python3 scripts/setup_links.py --tool codex --skills multi-agent-workflow,personal-knowledge --print-only
+```
+
+确认后才加 `--apply`。脚本不会安装 agent CLI、不会写私有配置、不会默认启用所有 skill。
 
 1. 先把当前 Codex 中确认最新的公共规则同步到 `ai-agent/rules/*.md`。
 2. 把当前 Codex 中确认最新的托管 skill 同步到 `ai-agent/skills/<skill-name>/`，排除 `.DS_Store`、`__pycache__`、日志、缓存和本机配置。
@@ -149,4 +174,4 @@ OpenClaw 目标配置形态：
 - `openclaw skills check` 中托管 skill 来源应显示为 `openclaw-extra`，不能出现 `symlink-escape`。
 - `default.rules` 不出现在 `ai-agent` 的可提交变更里。
 - skill 回归检查能在不打印真实凭据的前提下运行。
-- 新机器只需要 clone `ai-agent` 仓库并执行安装脚本，就能恢复同一套规则和托管 skill。
+- 新机器只需要 clone `ai-agent` 仓库，执行只读检查，并按需链接公共规则和选定 skill。

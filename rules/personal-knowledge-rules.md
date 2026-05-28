@@ -10,7 +10,7 @@
 ## 沉淀原则
 
 - Obsidian 是人工可读的个人知识库，不是 CLI 原始会话归档。
-- Claude 自带 auto-memory（`~/.claude/projects/-Users-hugang/memory/`）作为 in-session 快路径，记录 user、feedback、project、reference 四类即时偏好；Obsidian 候选属于长期沉淀。扫描器写入 Obsidian 候选时按 `source` 与 `session_id` 去重，不重复记录 auto-memory 已覆盖的同一条目。
+- CLI 自带的 auto-memory 或短期记忆作为 in-session 快路径，记录 user、feedback、project、reference 四类即时偏好；Obsidian 候选属于长期沉淀。扫描器写入 Obsidian 候选时按 `source` 与 `session_id` 去重，不重复记录短期记忆已覆盖的同一条目。
 - Obsidian 默认按私有知识库处理，保留能帮助后续复盘和继续工作的上下文；代码位置、仓库名、模块名、方法名、改动范围、测试命令、验证结论、问题编号、环境名称和必要的内部业务上下文可以进入知识库。
 - 敏感处理采用出口管控：写入私有 Obsidian 时默认不做脱敏；当内容要同步到个人 GitHub、写入公开规则、升级为 skill、进入提交记录、对外回复或交给非私有环境时，再按安全规则做脱敏、改写或删除。
 - 只有能直接登录、调用、越权访问或恢复身份的凭据类内容默认处理，例如生产账号密码、token、cookie、session、API key、私钥、连接串、验证码、恢复码和助记词；处理时只替换凭据值，尽量保留问题背景和操作结论。
@@ -129,10 +129,10 @@ feedback_target: 验证流程
 ## 扫描器写入红线
 
 - 扫描器以直接文件写入 vault 的 `AgentKnowledge/Inbox/` 或 `AgentKnowledge/Daily/` 作为标准通道；MCP 与 Local REST API 仅用于会话内人工写入。
-- 扫描器读取会话 JSONL 时，若工具输出含密码、token、cookie、session、连接串、API key 明文（包括 `~/.claude/mcp.json` 这类配置文件原文），必须以 `secret_ref` 占位，原始值不能进入候选正文。
+- 扫描器读取会话 JSONL 时，若工具输出含密码、token、cookie、session、连接串、API key 明文（包括工具本机配置文件原文），必须以 `secret_ref` 占位，原始值不能进入候选正文。
 - Daily 只作为当天可读索引。没有 assistant 处理、修复、验证或明确结论的会话不写 Daily；Daily 正文不得出现 `source_key`、`session_id`、`obsidian-log-sync`、`turn_N`/`tool_N`、`会话ID`、`来源`、`你指出`、`Agent 处理` 等调试字段或模板化过程字段。
 - 扫描器写入失败时只在自身日志记录失败原因，不改写到非 vault 路径，不把候选塞进任何 agent 上下文。
-- 扫描器只读会话日志和已知 vault 目录，不读 `~/.claude/projects/*/memory/`、`~/.codex/local/`、Hermes sessions、OpenClaw workspace 私有目录等其他位置。
+- 扫描器只读本机私有配置声明的会话日志和已知 vault 目录，不读工具短期记忆、local 私有目录、运行时 session 目录、workspace 私有目录等其他位置。
 - 扫描器每跑完一批必须在自身日志输出本批自检统计：写入文件数、frontmatter schema 校验失败数、排除清单命中数、单 session 候选数分布、主题与正文语义脱节告警数。自检异常时本批整体回退或标红，不依赖人工事后审计发现 schema drift 或采集偏差。
 - 扫描器、模板或 writer 不得继续写旧格式字段；发现 `type: agent-log-candidate`、`status: candidate`、`agent_load`、`domain: Inbox`、`contexts`、`sensitivity`、`secret_policy`、`secret_refs: []` 时必须阻断写入并修正生成源。
 

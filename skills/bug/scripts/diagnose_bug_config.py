@@ -18,7 +18,6 @@ def main() -> None:
     print(f"has_username={bool(config.get('username') or resolve_secret(config.get('usernameSource')))}")
     print(f"has_password={bool(config.get('password') or resolve_secret(config.get('passwordSource')))}")
     print(f"project_count={len(projects)}")
-    print(f"has_teacher_ai_project={any(key.lower().replace('_', '-') == 'teacher-ai' for key in projects)}")
 
 
 if __name__ == "__main__":

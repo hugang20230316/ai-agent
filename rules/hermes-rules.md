@@ -1,15 +1,14 @@
 # Hermes 规则
 
-## 启动入口
+## 加载边界
 
-- Hermes 原生入口是 `$HERMES_HOME/SOUL.md`；涉及 Hermes 时，先确认它会读取 `$HERMES_HOME/AGENTS.md`。
-- `$HERMES_HOME/AGENTS.md` 应指向统一规则入口 `~/ai-agent/AGENTS.md`，不要在 Hermes home 里单独散写通用规则。
-- `$HERMES_HOME/rules/*.md` 只做逐文件软链接，源文件放在 `~/ai-agent/rules/*.md`。
-- 个人 GitHub skill 只通过 `$HERMES_HOME/config.yaml` 的 `skills.external_dirs` 逐个引入具体 skill 目录；不要指向整个 `~/ai-agent/skills`，也不要指向其他工具的完整 skill 目录。
+- Hermes 原生会话启动后，SOUL/AGENTS 入口只负责接入公共规则；涉及 Hermes CLI、Dashboard、Gateway、MCP 或 cron 时再执行本文件。
+- Hermes 本地目录、入口文件、skills 外部目录、MCP 和 Gateway 配置由本机 profile 或当前 Hermes 配置声明，公共规则不写具体路径。
+- Hermes 本地目录不单独散写通用规则；通用行为回到公共规则，Hermes 专属行为写入本文件。
 
 ## 修改边界
 
-- `$HERMES_HOME/hermes-agent` 是 Hermes 官方源码或安装目录，默认只读诊断，不直接修改或提交；除非用户明确要求维护该源码、本地 fork 或准备上游补丁。
+- Hermes 官方源码或安装目录默认只读诊断，不直接修改或提交；除非用户明确要求维护该源码、本地 fork 或准备上游补丁。
 - 发现 Hermes 官方问题时，默认给出复现命令、影响、临时绕过、配置或规则方案，以及上游 patch 建议；不要直接改官方文件。
 - 不运行 `hermes update`、迁移、卸载、备份恢复、安装依赖、构建 Dashboard 或启动长期服务，除非用户明确授权。
 - 不读取 `.env`、`config.yaml` 原文、sessions、memories、日志全文或凭据文件；需要状态时，使用 `hermes doctor`、`hermes status`、`hermes dump` 或日志摘要命令，并脱敏输出。

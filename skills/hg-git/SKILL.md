@@ -1,22 +1,23 @@
 ---
 name: hg-git
-description: Inspect, bootstrap, synchronize, commit, pull, and push Hugang's personal GitHub repositories. Use when the user explicitly names personal GitHub, hg-git, ai-agent, Codex rules/skills sync, encrypted/private personal data projects, personal private data, Postman sync, or personal repo update/commit/pull/push. Always list detected repo updates and show git-style change summaries before committing or pushing. Requires clear conflict reporting before resolving merge/rebase conflicts.
+description: Inspect, bootstrap, synchronize, commit, pull, and push Hugang's managed GitHub repositories. Use when the user explicitly names personal GitHub, hg-git, ai-agent, Codex rules/skills sync, encrypted/private personal data projects, personal private data, Postman sync, or repo update/commit/pull/push. Always list detected repo updates and show git-style change summaries before committing or pushing. Requires clear conflict reporting before resolving merge/rebase conflicts.
 ---
 
 # HG Git
 
-Use this skill to inspect, synchronize, commit, pull, and push the user's personal GitHub repositories safely.
+Use this skill to inspect, synchronize, commit, pull, and push the user's managed GitHub repositories safely.
 
 ## Activation Boundary
 
-- This skill is only for personal Git repository maintenance.
-- Do not inspect the known personal repo map unless the user explicitly mentions personal GitHub, `hg-git`, `ai-agent`, Codex rules/skills sync, encrypted/private personal data projects, personal private data, Postman sync, or personal repo commit/pull/push/update.
+- This skill is only for the user's managed Git repository maintenance.
+- Do not inspect the known managed repo map unless the user explicitly mentions personal GitHub, `hg-git`, `ai-agent`, Codex rules/skills sync, encrypted/private personal data projects, personal private data, Postman sync, or managed repo commit/pull/push/update.
 
-## Personal Repo Map
+## Managed Repo Map
 
-Known personal GitHub repositories:
+Known managed GitHub repositories:
 
 - `github.com/hugang20230316/ai-agent`
+- `github.com/team-agent-workflow/ai-agent`
 - `github.com/hugang20230316/personal-private-data`
 
 Resolve local paths from machine-specific configuration before inspecting:
@@ -27,16 +28,22 @@ Resolve local paths from machine-specific configuration before inspecting:
 - existing home-relative defaults such as `<home>/ai-agent`,
   `<codex-home>/ai-agent`, or `<home>/personal-private-data`
 
-Treat any repo as personal only after `git remote -v` confirms a `github.com/hugang20230316/` remote. Do not copy, commit, or push company, cache, runtime, temporary, or third-party repo content to the user's personal GitHub.
+Treat a repo as managed only after `git remote -v` confirms the expected
+remote for that repo type. `ai-agent` may use either
+`github.com/hugang20230316/ai-agent` or
+`github.com/team-agent-workflow/ai-agent`. `personal-private-data` must use
+`github.com/hugang20230316/personal-private-data`. Do not copy, commit, or push
+company, cache, runtime, temporary, or third-party repo content to the user's
+GitHub repositories.
 
 ## Workflow
 
 1. Confirm the request is inside the Activation Boundary; otherwise stop this workflow.
 2. Identify the target repo and verify its remote.
-   - If the current working directory is inside a verified personal repo, use
+   - If the current working directory is inside a verified managed repo, use
      that repo first.
    - If the user gives only a short command such as `hg-git pull` or
-     `hg-git push`, inspect known personal repo paths and route each repo by
+     `hg-git push`, inspect known managed repo paths and route each repo by
      its type.
    - If a repo contains `.hg-git-private-data.json`, treat it as a
      private-data repo and use the shared helper instead of raw Git for
@@ -51,9 +58,9 @@ Treat any repo as personal only after `git remote -v` confirms a `github.com/hug
      `~/.codex/skills/<skill>/` folders with the matching
      `ai-agent/skills/<skill>` folders first.
    - If live sources differ from the repo mirror and the user asked to push or
-     sync, copy only the allowed public files into the verified personal repo,
+     sync, copy only the allowed public files into the verified managed repo,
      then include those changes in the repo inventory.
-5. Summarize what maps to personal GitHub before committing:
+5. Summarize what maps to managed GitHub before committing:
    - rules: `~/.codex/AGENTS.md` and `~/.codex/rules/*.md` map to `ai-agent`
    - skills: selected `~/.codex/skills/<skill>/` folders map to
      `ai-agent/skills`
@@ -69,7 +76,7 @@ Treat any repo as personal only after `git remote -v` confirms a `github.com/hug
    - search staged files for common secret patterns when practical
 8. Commit with a clear message when the user asked to commit.
 9. Before push, fetch or pull the latest remote state.
-10. Push only the confirmed personal repo branch.
+10. Push only the confirmed managed repo branch.
 
 ## Proxy Auto-Bypass
 
@@ -175,7 +182,7 @@ Rules:
 
 ## Update Inventory
 
-At the start of every invocation, inspect all known personal repos unless the user explicitly names one repo.
+At the start of every invocation, inspect all known managed repos unless the user explicitly names one repo.
 
 Before declaring `ai-agent` clean, collect live-source drift:
 
@@ -219,7 +226,7 @@ Show the user a git-tool-style summary before commit or push:
 - <commit / stage / inspect / exclude / no action>
 ```
 
-If a repo is clean, say it is clean. If multiple repos have changes, group the output by repo and ask before committing or pushing more than one repo in the same run unless the user already requested all personal repos.
+If a repo is clean, say it is clean. If multiple repos have changes, group the output by repo and ask before committing or pushing more than one repo in the same run unless the user already requested all managed repos.
 
 When the user asks for "像 git 工具一样" or wants details, include the relevant `git diff -- <file>` snippets for small text files. For large, generated, binary, or sensitive-looking files, show only file status and explain why the full diff is omitted.
 

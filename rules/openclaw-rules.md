@@ -1,17 +1,16 @@
 # OpenClaw 规则
 
-## 启动入口
+## 加载边界
 
-- OpenClaw 的 workspace 入口应是 `~/.openclaw/workspace/AGENTS.md`，并指向统一规则入口 `~/ai-agent/AGENTS.md`。
-- OpenClaw 规则不要单独散写在 workspace 入口文件里；通用规则写入 `~/ai-agent/AGENTS.md`，OpenClaw 专属规则写入本文件。
-- 个人 GitHub skill 只通过 `~/.openclaw/openclaw.json` 的 `skills.load.extraDirs` 逐个引入；不要把 `~/ai-agent/skills` 整个目录指向 workspace，也不要把 Codex、Claude、Hermes 的完整 skill 目录互相指向。
-- 排查 OpenClaw 本机问题时，先按 `~/ai-agent/AGENTS.md` 的规则清单加载通用规则，再按本文件处理 OpenClaw 专属步骤。
+- OpenClaw 原生会话启动后，workspace 入口只负责接入公共规则；涉及 Gateway、workspace skills 或 `/hermes` 转发时再执行本文件。
+- OpenClaw 的入口文件、skills 目录、Gateway 配置和本机启动方式由本机 profile 或当前 OpenClaw 配置声明，公共规则不写具体路径。
+- OpenClaw 规则不要单独散写在 workspace 入口文件里；通用行为回到公共规则，OpenClaw 专属行为写入本文件。
 
 ## 输出与边界
 
 - 默认中文简洁回复，先做事再总结；不要把可执行任务停在计划阶段。
 - 最终答复只写实际变更、验证结果和剩余风险。
-- 在 OpenClaw 原生会话中，消息带 `/hermes <message>` 时，可以调用 Hermes 本地 CLI 并只返回 Hermes 最终答复；具体 `HERMES_HOME` 使用本机私有配置或当前 profile 环境变量。
+- 在 OpenClaw 原生会话中，消息带 `/hermes <message>` 时，可以调用 Hermes 本地 CLI 并只返回 Hermes 最终答复；具体 Hermes 本地目录使用本机私有配置或当前 profile 环境变量。
 - `/hermes` 请求不得启动、停止、重启、安装、配置或登录 Hermes Gateway；如果 CLI 调用失败，只报告命令失败。
 - 不执行破坏性命令，不外发消息，不上传私有数据，除非用户明确授权。
 

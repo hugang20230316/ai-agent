@@ -26,12 +26,14 @@ FILES = {
     "markdown": "rules/markdown-rules.md",
     "research": "rules/research-rules.md",
     "requirements": "rules/requirements-and-prototype.md",
+    "evidence_output": "rules/evidence-output-rules.md",
     "mcp_output": "rules/mcp-output-rules.md",
     "openclaw": "rules/openclaw-rules.md",
     "hermes": "rules/hermes-rules.md",
     "personal_rules": "rules/personal-knowledge-rules.md",
     "personal_skill": "skills/personal-knowledge/SKILL.md",
     "bug_skill": "skills/bug/SKILL.md",
+    "hg_git_skill": "skills/hg-git/SKILL.md",
     "bug_contract": "skills/bug/scripts/test_bug_skill_contract.py",
     "file_map": "docs/file-map.md",
 }
@@ -60,7 +62,7 @@ REQUIRED_PHRASES = {
     ),
     "tool_stall_fallback": (
         "communication",
-        "等待工具、子 agent 或外部命令超过预期时，明确说明卡在哪一步",
+        "等待工具、子 agent 或外部命令超过预期无输出",
     ),
     "known_facts_not_questions": (
         "communication",
@@ -69,6 +71,10 @@ REQUIRED_PHRASES = {
     "final_claim_evidence": (
         "communication",
         "生效层级、触发条件、执行机制、验证证据和未覆盖边界",
+    ),
+    "git_commit_message_chinese": (
+        "communication",
+        "生成 Git 提交说明时，普通提交默认用中文短句描述实际修改",
     ),
     "hotfix_feedback_pattern": (
         "communication",
@@ -322,7 +328,7 @@ FORBIDDEN_GLOBAL_PHRASES = {
     "old_skill_recommendation_detail": "主推荐至少写名称",
     "old_skill_recommendation_three": "推荐结果必须分为“主推荐”“候选”“不推荐”三类",
     "old_requirements_default_write": "默认交付物必须写入当前项目的需求文档库",
-    "old_markdown_absolute_example": "/Users/hugang/docs/tutorials/rabbitmq/README.md",
+    "old_markdown_absolute_example": "<home>/docs/tutorials/rabbitmq/README.md",
     "old_openclaw_fixed_first_checks": "首轮固定先查 4 项",
     "old_openclaw_bundled_runtime": "bundled runtime deps 缺失",
     "old_hermes_command_catalog": "hermes --version`、`hermes --help",
@@ -383,7 +389,7 @@ SCENARIOS = {
     ],
     "S4_long_task_stall_reports_progress": [
         ("communication", "长时间任务要用阶段进度同步当前状态"),
-        ("communication", "等待工具、子 agent 或外部命令超过预期时"),
+        ("communication", "等待工具、子 agent 或外部命令超过预期无输出"),
     ],
     "S5_performance_needs_baseline": [
         ("coding", "性能优化必须先说明瓶颈、基线和对照口径"),
@@ -391,7 +397,7 @@ SCENARIOS = {
     ],
     "S6_known_config_not_reasked": [
         ("communication", "不要把已知事实包装成问题再丢给用户确认"),
-        ("testing", "如果项目规则、本机私有配置或用户长期约定已说明默认环境，则直接按该环境执行"),
+        ("testing", "已有默认环境时直接按该环境执行"),
     ],
     "S7_existing_changes_preserved": [
         ("coding", "不要回滚、覆盖或格式化它们，除非用户明确要求"),
@@ -404,6 +410,11 @@ SCENARIOS = {
     "S9_final_artifact_verified": [
         ("testing", "验证对象必须覆盖最终交付物本身"),
         ("communication", "验证证据和未覆盖边界"),
+    ],
+    "S9_git_commit_message_language": [
+        ("communication", "生成 Git 提交说明时"),
+        ("communication", "普通提交默认用中文短句描述实际修改"),
+        ("communication", "合并、冲突解决、revert、cherry-pick、版本同步、项目约定或用户明确要求英文"),
     ],
     "S10_field_semantics_traced": [
         ("coding", "先追溯同一业务字段在模型、DTO、枚举、映射、读写入口和已有文档中的完整定义"),
@@ -1052,13 +1063,20 @@ RULE_LOAD_ROUTE_REQUIREMENTS = {
     "mcp_output": {
         "terms": [
             "MCP",
+        ],
+        "refs": ["@rules/mcp-output-rules.md"],
+    },
+    "evidence_output": {
+        "terms": [
             "工具输出",
             "命令结果",
             "日志",
             "长输出",
             "数据源",
+            "接口请求",
+            "证据输出",
         ],
-        "refs": ["@rules/mcp-output-rules.md"],
+        "refs": ["@rules/evidence-output-rules.md"],
     },
     "research": {
         "terms": [
@@ -1153,7 +1171,10 @@ FIXED_LOAD_FIXTURES = [
     {
         "name": "mcp_output",
         "utterance": "MCP 工具输出太长，请按数据源、命令结果和日志时间线整理。",
-        "expected_refs": ["@rules/mcp-output-rules.md"],
+        "expected_refs": [
+            "@rules/evidence-output-rules.md",
+            "@rules/mcp-output-rules.md",
+        ],
     },
     {
         "name": "research_recommendation",
@@ -1294,9 +1315,16 @@ RANDOM_SCENARIO_FAMILIES = {
     "mcp_output": {
         "route": "discussion",
         "refs": ["@rules/mcp-output-rules.md"],
-        "subjects": ["MCP 查询", "工具输出", "命令结果", "日志整理"],
+        "subjects": ["MCP 查询", "MCP 资源", "MCP 调用", "MCP 兜底"],
+        "problems": ["连接来源不清", "兜底原因没说明", "MCP 资源没列明", "查询结果混在一起"],
+        "actions": ["说明 MCP 选择", "标明连接来源", "记录兜底方式", "按 MCP 边界输出"],
+    },
+    "evidence_output": {
+        "route": "discussion",
+        "refs": ["@rules/evidence-output-rules.md"],
+        "subjects": ["工具输出", "命令结果", "日志整理", "接口请求"],
         "problems": ["长输出没有摘要", "缺数据源", "缺返回数量", "没有时间线"],
-        "actions": ["说明查询条件", "按数据源输出", "脱敏凭据", "标明兜底方式"],
+        "actions": ["说明查询条件", "按数据源输出", "脱敏凭据", "标明证据来源"],
     },
     "project": {
         "route": "discussion",
@@ -1325,10 +1353,10 @@ RANDOM_SCENARIO_FAMILIES = {
 RANDOM_SCENARIO_ROUNDS = [
     ("similar_rule_failures", ["rule_hotfix", "rule_hotfix", "rule_hotfix", "verify_only"]),
     ("opposite_and_boundaries", ["candidate", "verify_only", "discussion_hotfix_question", "personal_rules"]),
-    ("long_task_and_closeout", ["long_task", "testing", "communication", "mcp_output"]),
+    ("long_task_and_closeout", ["long_task", "testing", "communication", "evidence_output"]),
     ("implementation_semantics", ["coding", "testing", "skill", "requirements"]),
     ("governance_and_safety", ["security", "project", "candidate", "skill"]),
-    ("research_docs_tools", ["research", "markdown", "mcp_output", "rule_hotfix"]),
+    ("research_docs_tools", ["research", "markdown", "mcp_output", "evidence_output", "rule_hotfix"]),
 ]
 
 
@@ -1367,7 +1395,7 @@ CLASSIFICATION_GUARDS = [
     (
         "markdown",
         "public markdown rules must not hard-code local absolute examples",
-        ["/Users/hugang/docs/tutorials"],
+        ["<home>/docs/tutorials"],
     ),
     (
         "openclaw",
@@ -1917,6 +1945,7 @@ ACTION_MARKERS = [
     "优先",
     "默认",
     "说明",
+    "避免",
     "检查",
     "保留",
     "写入",
@@ -1930,6 +1959,7 @@ ACTION_MARKERS = [
     "遵循",
     "属于",
     "使用",
+    "用",
     "可以",
     "应",
     "核对",
@@ -1977,6 +2007,30 @@ def check_required_phrases(texts: dict[str, str]) -> None:
         if phrase not in texts[key]:
             fail(f"missing required phrase {label} in {FILES[key]}: {phrase}")
     print(f"PASS: required rule coverage ({len(REQUIRED_PHRASES)})")
+
+
+def check_hg_git_repo_boundaries(texts: dict[str, str]) -> None:
+    text = texts["hg_git_skill"]
+    required = [
+        "github.com/hugang20230316/ai-agent",
+        "github.com/team-agent-workflow/ai-agent",
+        "github.com/hugang20230316/personal-private-data",
+        "`ai-agent` may use either",
+        "`personal-private-data` must use",
+    ]
+    missing = [phrase for phrase in required if phrase not in text]
+    if missing:
+        fail("hg-git skill missing repo boundary phrases:\n" + "\n".join(missing))
+
+    private_org_pattern = r"github\.com/team-agent-workflow/personal-private-data"
+    if re.search(private_org_pattern, text):
+        fail("hg-git skill must not allow organization remote for personal-private-data")
+
+    broad_org_pattern = r"github\.com/team-agent-workflow/(?!ai-agent(?:`|\\b|/|\\.git))"
+    if re.search(broad_org_pattern, text):
+        fail("hg-git skill must not allow broad team-agent-workflow repo matching")
+
+    print("PASS: hg-git repo boundary guard")
 
 
 def check_forbidden_phrases() -> None:
@@ -3221,6 +3275,7 @@ def main() -> None:
     check_agents_route_loading(texts)
     check_rule_load_fixtures()
     check_rule_routing_fixtures(texts)
+    check_hg_git_repo_boundaries(texts)
     check_random_scenario_rounds()
     check_transcript_fixtures()
     check_code_quality_fixtures()

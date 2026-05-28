@@ -1,8 +1,8 @@
-# Agent 跨设备同步整理
+# Agent 共享同步整理
 
-范围只包含个人规则、个人维护 skill 和可拆分的跨平台约定；不包含任何公司项目仓库、Agent CLI 运行配置、会话、日志或凭据。
+范围只包含共享规则、托管 skill 和可拆分的跨平台约定；不包含任何公司项目仓库、Agent CLI 运行配置、会话、日志或凭据。
 
-本仓库用 `AGENTS.md` 作为统一规则入口，用 `rules/` 存放规则正文，用 `skills/` 存放个人维护 skill。`docs/` 目录只保存同步说明和迁移说明，不参与规则加载。
+本仓库用 `AGENTS.md` 作为统一规则入口，用 `rules/` 存放规则正文，用 `skills/` 存放托管 skill。`docs/` 目录只保存同步说明和迁移说明，不参与规则加载。
 
 ## 全局规则
 
@@ -26,7 +26,7 @@
 - `requirements-and-prototype.md`：需求与原型规则
 - `personal-knowledge-rules.md`：Obsidian 与个人知识库沉淀规则
 
-这些文件是个人 Agent 全局基线，适合跨项目、跨 Windows / Mac 共用。不要在这里写项目名、业务表、内部环境、发布链路、测试账号或项目专属构建例外。
+这些文件是共享 Agent 全局基线，适合跨项目、跨 Windows / Mac 共用。不要在这里写项目名、业务表、内部环境、发布链路、测试账号或项目专属构建例外。
 
 统一入口文件是仓库根目录的 `AGENTS.md`。各工具只通过自己的原生入口加载它：
 
@@ -68,11 +68,11 @@
 
 ## Skill 同步
 
-个人自建或明确个人维护的 skill 放在本仓库的 `skills/<skill-name>/` 下。每个工具只软链接或配置引用明确托管的 skill 目录。
+共享或明确托管的 skill 放在本仓库的 `skills/<skill-name>/` 下。每个工具只软链接或配置引用明确托管的 skill 目录。
 
 不要软链接整个工具 skill 目录，这些目录混有系统 skill、插件 skill、缓存和本机安装态。
 
-当前个人 GitHub skill 清单：
+当前托管 skill 清单：
 
 - `bug`
 - `grafana`
@@ -81,6 +81,8 @@
 - `personal-knowledge`
 - `publish-dev`
 - `requirements-organizer`
+- `rule-fix`
+- `tutorial-writer`
 
 Codex 和 Claude 通过逐个 skill 目录软链接加载这些 skill。Hermes 通过 `skills.external_dirs` 逐个列出这些目录。OpenClaw 通过 `skills.load.extraDirs` 逐个列出这些目录，不使用 workspace skill 软链接。
 

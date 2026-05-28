@@ -1,6 +1,6 @@
 # 不同步清单
 
-以下内容不进入 Windows / Mac 公共同步包。
+以下内容不进入共享公共同步包。
 
 ## Codex CLI 配置
 
@@ -68,4 +68,4 @@
 - `~/.codex/memories/<defect-platform>_auth.py`
 - `~/.codex/memories/<defect-platform>_auth_state.json`
 
-原因：与个人跨设备 Agent 规则无关，且可能包含公司环境或认证信息。
+原因：与共享 Agent 规则无关，且可能包含公司环境或认证信息。

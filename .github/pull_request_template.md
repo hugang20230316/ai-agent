@@ -6,6 +6,7 @@
 
 -
 
-## Check
+## Rule Files
 
-- [ ] `python3 scripts/verify_agent_rules.py`
+- Does this PR change `AGENTS.md` or `rules/**`?
+- If yes, describe whether it may conflict with existing rules.

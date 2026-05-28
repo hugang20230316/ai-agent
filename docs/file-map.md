@@ -1,6 +1,6 @@
 # Agent 文件路径分类
 
-以下路径使用通用模板表示。只整理个人 Agent 规则、个人维护 skill 和跨平台说明，不包含公司项目仓库。
+以下路径使用通用模板表示。只整理共享 Agent 规则、托管 skill 和跨平台说明，不包含公司项目仓库。
 
 ## 公共可同步
 
@@ -9,11 +9,11 @@
   - Codex、Claude、Hermes、OpenClaw 共用的统一规则入口
 - `rules/*.md`
   - 可同步
-  - 仅包含个人通用规则；通过逐文件软链接暴露到 `<codex-home>/rules/*.md`
+  - 仅包含共享通用规则；通过逐文件软链接暴露到 `<codex-home>/rules/*.md`
   - 排除 `<codex-home>/rules/default.rules`
 - `skills/<managed-skill>/`
   - 可同步
-  - 仅包含个人自建或明确个人维护并确认可公开同步的 skill
+  - 仅包含明确托管并确认可公开同步的 skill
   - 当前知识库能力统一放在 `skills/personal-knowledge/`
 - `docs/agent-sync.md`
   - 可同步
@@ -75,7 +75,7 @@
 
 - `<tool-home>/memories/<company-project>-*.md`
   - 公司项目和内部环境相关
-  - 不进入个人跨设备公共同步包
+  - 不进入共享公共同步包
 - `<tool-home>/memories/<defect-platform>_auth.py`
   - 登录脚本和内部平台相关
   - 不进入公共同步包

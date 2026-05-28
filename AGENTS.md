@@ -1,15 +1,8 @@
 # 个人 Agent 全局规则入口
 
-本文件是个人 GitHub 仓库里的统一规则清单。Codex、Claude、OpenClaw、Hermes 都应通过各自会读取的原生入口加载本文件，再由本文件引用同一套 `rules/*.md`。
+本文件是公共规则入口。Codex、Claude、OpenClaw、Hermes 等工具应通过各自原生入口、本机 profile、软链接或配置引用加载本文件，再由本文件引用同一套公共 `rules/*.md`。
 
-本机映射：
-
-- Codex：`~/.codex/AGENTS.md`
-- Claude：`~/.claude/AGENTS.md`，由 `~/.claude/CLAUDE.md` 引用
-- OpenClaw：`~/.openclaw/workspace/AGENTS.md`
-- Hermes：`$HERMES_HOME/AGENTS.md`，由 `$HERMES_HOME/SOUL.md` 要求读取
-
-本文件只引用个人通用规则和少量工具专属边界；不引用任何工具的本机私有配置，也不引用项目仓库规则。
+本文件默认只引用公共规则；工具专属规则按当前运行工具或任务语义触发加载。本机路径、工具本地目录、账号、内部环境、项目仓库规则和私有启动方式不写入本文件。
 
 @rules/communication-rules.md
 @rules/security-and-privacy-rules.md
@@ -17,8 +10,6 @@
 @rules/coding-rules.md
 @rules/testing-rules.md
 @rules/skill-rules.md
-@rules/openclaw-rules.md
-@rules/hermes-rules.md
 @rules/project-governance.md
 @rules/evidence-output-rules.md
 @rules/mcp-output-rules.md
@@ -38,8 +29,10 @@
 - 涉及长任务、多阶段排查、未完成收口、上下文压力或 `/compact` 时，必须同时读取 `@rules/communication-rules.md` 和 `@rules/testing-rules.md`。
 - 涉及方法名过长、实现细节命名、字段语义、注释缺失、注释过长、泛词注释或无意义封装时，必须同时读取 `@rules/coding-rules.md` 和 `@rules/testing-rules.md`，并用最终 diff 复查命名、注释和辅助方法是否仍有同类问题。
 - 用户点名 skill、插件或任务语义命中某个 skill 时，必须同时按 `@rules/skill-rules.md` 执行触发、加载、推荐筛选和修改边界规则。
-- 涉及 OpenClaw 配置、SOUL、workspace、skills 或 OpenClaw 运行行为时，读取 `@rules/openclaw-rules.md`。
-- 涉及 Hermes 配置、SOUL、AGENTS、rules、skills、CLI、Dashboard、Gateway、MCP、cron 或 Hermes 运行行为时，读取 `@rules/hermes-rules.md`。
+- 当前 agent 运行在 OpenClaw 原生会话中时，即使用户任务没有提到 OpenClaw，也必须读取 `@rules/openclaw-rules.md`。
+- 当前 agent 运行在 Hermes 原生会话中时，即使用户任务没有提到 Hermes，也必须读取 `@rules/hermes-rules.md`。
+- 涉及 OpenClaw 配置、OpenClaw SOUL、workspace、skills 或 OpenClaw 运行行为时，读取 `@rules/openclaw-rules.md`。
+- 涉及 Hermes 配置、Hermes SOUL、AGENTS、rules、skills、CLI、Dashboard、Gateway、MCP、cron 或 Hermes 运行行为时，读取 `@rules/hermes-rules.md`。
 - 涉及个人规则仓库、项目规则分层、同步设计、文件归类或规则沉淀时，读取 `@rules/project-governance.md`。
 - 涉及工具输出、命令结果整理、日志、数据源查询、接口请求、接口排查、接口验证、联调参数、请求/响应比对、证据输出或长输出摘要时，读取 `@rules/evidence-output-rules.md`。
 - 涉及 MCP 选择、MCP 调用、MCP 兜底、MCP 资源或连接来源时，读取 `@rules/mcp-output-rules.md`；若同时涉及查询结果呈现，也按 `@rules/evidence-output-rules.md` 执行。
@@ -51,6 +44,6 @@
 
 ## 共用边界
 
-- 全局规则以 `~/ai-agent/rules/*.md` 为源，各工具 home 下的 `rules/*.md` 只是逐文件软链接。
+- 公共规则以本仓库 `rules/*.md` 为源；工具侧通过各自原生入口、本机 profile、软链接或配置引用加载。
 - 私有配置、敏感信息、同步边界、公司项目边界和平台差异遵循 `@rules/security-and-privacy-rules.md`。
 - 项目规则只放在目标项目自己的规则入口和项目级规则目录里，不写回本仓库的全局规则。
