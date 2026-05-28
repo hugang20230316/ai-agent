@@ -1,0 +1,4 @@
+# Rule changes require Hugang review.
+
+/AGENTS.md @hugang20230316
+/rules/** @hugang20230316
