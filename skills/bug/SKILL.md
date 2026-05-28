@@ -17,7 +17,7 @@ python3 scripts/diagnose_bug_config.py
 
 Machine-specific tracker URLs, accounts, passwords, download paths, repo paths, project API base URLs, and test-environment addresses must come from local config, environment variables, or explicit CLI arguments. Do not add platform-specific skill files or wrapper scripts.
 
-Local config is loaded from `bug.local.json` by `scripts/local_config.py`. Project-specific service entries should use `projects.<project-name>.serviceBaseUrl` plus optional aliases/policy text. Treat those values as local-only secrets: use them during investigation, but do not copy internal hosts into public rules, committed docs, or final answers unless the user explicitly asks for that exact value.
+Local config is loaded as a single authoritative `bug.local.json` by `scripts/local_config.py`: `$CODEX_SKILL_CONFIG_DIR/bug.local.json` when that environment variable is set, otherwise `~/.codex/local/bug.local.json`. Do not scan project `.codex/local/` directories for this skill. Project-specific entries should live under `projects.<project-name>` with fields such as `repoPath`, `serviceBaseUrl`, `aliases`, and optional policy text. Treat those values as local-only secrets: use them during investigation, but do not copy internal hosts into public rules, committed docs, or final answers unless the user explicitly asks for that exact value.
 
 When a user explicitly asks to save or update project bug-investigation config, group related known layer addresses from the same conversation or project-local docs. Otherwise, use discovered addresses for the current investigation only and do not persist them.
 

@@ -4,10 +4,17 @@
   "passwordSource": "env:ZENTAO_PASSWORD",
   "browserSession": "issue-tracker-local",
   "downloadDir": "<repo>/artifacts/issues",
-  "swaggerJsonUrl": "https://api.example.com/swagger/v1/swagger.json",
-  "testApiBaseUrl": "https://api.example.com",
-  "loginEndpoint": "/api/login",
-  "portalTicketUrl": "https://internal.example.com/ticket",
-  "repoRoot": "<path-to-repo>",
-  "tempDir": "<temp-dir>"
+  "projects": {
+    "example-project": {
+      "repoPath": "<path-to-repo>",
+      "aliases": [
+        "example-project"
+      ],
+      "swaggerJsonUrl": "https://api.example.com/swagger/v1/swagger.json",
+      "testApiBaseUrl": "https://api.example.com",
+      "loginEndpoint": "/api/login",
+      "portalTicketUrl": "https://internal.example.com/ticket",
+      "tempDir": "<temp-dir>"
+    }
+  }
 }

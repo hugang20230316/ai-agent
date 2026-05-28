@@ -29,6 +29,8 @@ REQUIRED_PHRASES = {
     "evidence_and_output_gate": "## Evidence and Output Gate",
     "skill_regression_gate": "## Skill Regression Gate",
     "login_gate": "## Login and Config Gate",
+    "single_authoritative_config": "single authoritative `bug.local.json`",
+    "no_project_local_scan": "Do not scan project `.codex/local/` directories",
     "no_inline_credentials_first": "with no inline credentials",
     "diagnose_config": "python3 scripts/diagnose_bug_config.py",
     "no_login_blocker_after_success": "If fetch succeeds, do not ask the user to configure ZenTao login",
@@ -129,6 +131,8 @@ def check_local_config() -> None:
     config_paths = config.get("_configPaths") or []
     if not config_paths:
         fail("bug.local.json was not loaded")
+    if len(config_paths) != 1:
+        fail(f"bug.local.json should load from exactly one path, got {len(config_paths)}")
     if not config.get("zentaoBaseUrl"):
         fail("zentaoBaseUrl is missing")
     if not (config.get("username") or resolve_secret(config.get("usernameSource"))):

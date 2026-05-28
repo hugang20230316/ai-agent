@@ -133,7 +133,7 @@ Codex and Claude can expose those shared skills through per-skill symlinks. Herm
 
 Skills are opt-in. Many maintained skills depend on company tools, monitoring, release flows, or personal repositories. New members should start with shared rules and add only the skills they actually use.
 
-Machine-specific skill configuration stays local. Shared skill scripts should read local settings from `$CODEX_SKILL_CONFIG_DIR/<skill-name>.local.json`, `~/.codex/local/<skill-name>.local.json`, or the current repo's `.codex/local/<skill-name>.local.json`.
+Machine-specific skill configuration stays local. Shared skill scripts should read local settings from `$CODEX_SKILL_CONFIG_DIR/<skill-name>.local.json` when set, otherwise `~/.codex/local/<skill-name>.local.json`. Do not rely on project-local `.codex/local/<skill-name>.local.json` files as a second active config source.
 
 Cross-device notes:
 

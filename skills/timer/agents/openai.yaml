@@ -1,0 +1,4 @@
+interface:
+  display_name: "Timer 管理"
+  short_description: "列出和管理 macOS/Windows 上与 AI 工作流相关的定时任务"
+  default_prompt: "Use $timer to list, inspect, create, update, delete, start, stop, restart, enable, disable, or check AI workflow timers and scheduled jobs."
