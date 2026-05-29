@@ -80,7 +80,7 @@ Shared custom skills:
 - `skills/hg-git/`
 - `skills/multi-agent-workflow/`
 - `skills/personal-knowledge/`
-- `skills/publish-dev/`
+- `skills/publish-gitlab-argo/`
 - `skills/requirements-organizer/`
 - `skills/rule-fix/`
 - `skills/tutorial-writer/`

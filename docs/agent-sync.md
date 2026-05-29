@@ -79,7 +79,7 @@
 - `hg-git`
 - `multi-agent-workflow`
 - `personal-knowledge`
-- `publish-dev`
+- `publish-gitlab-argo`
 - `requirements-organizer`
 - `rule-fix`
 - `tutorial-writer`

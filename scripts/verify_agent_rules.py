@@ -1374,7 +1374,7 @@ EXPECTED_RULE_FILES = {
 CLASSIFICATION_GUARDS = [
     (
         "testing",
-        "release authorization belongs in publish-dev skill",
+        "release authorization belongs in publish-gitlab-argo skill",
         ["发布授权", "创建 tag", "Argo", "默认应用"],
     ),
     (

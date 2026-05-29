@@ -15,7 +15,19 @@ from typing import Any
 from urllib import error, parse, request
 
 
-def load_skill_config(skill_name: str) -> dict[str, Any]:
+SKILL_NAME = "publish-gitlab-argo"
+LEGACY_SKILL_NAME = "publish-dev"
+STATE_DIR_NAME = "publish-gitlab-argo"
+LEGACY_STATE_DIR_NAME = "publish-dev"
+LOCK_FILE_NAME = "publish-gitlab-argo.lock.json"
+LEGACY_LOCK_FILE_NAME = "publish-dev.lock.json"
+RESULT_FILE_NAME = "publish-gitlab-argo.last-result.json"
+LEGACY_RESULT_FILE_NAME = "publish-dev.last-result.json"
+KEYCHAIN_SERVICE = "codex.publish-gitlab-argo.argocd"
+LEGACY_KEYCHAIN_SERVICE = "codex.publish-dev.argocd"
+
+
+def skill_config_candidates(skill_name: str) -> list[Path]:
     candidates: list[Path] = []
     config_dir = os.environ.get("CODEX_SKILL_CONFIG_DIR")
     if config_dir:
@@ -27,13 +39,22 @@ def load_skill_config(skill_name: str) -> dict[str, Any]:
     current = Path.cwd().resolve()
     for parent in [current, *current.parents]:
         candidates.append(parent / ".codex" / "local" / f"{skill_name}.local.json")
+    return candidates
 
-    for candidate in candidates:
-        if candidate.exists():
-            value = json.loads(candidate.read_text(encoding="utf-8"))
-            if isinstance(value, dict):
-                value["_configPath"] = str(candidate)
-                return value
+
+def load_skill_config(skill_name: str, legacy_skill_name: str | None = None) -> dict[str, Any]:
+    skill_names = [skill_name]
+    if legacy_skill_name and legacy_skill_name not in skill_names:
+        skill_names.append(legacy_skill_name)
+
+    for candidate_skill_name in skill_names:
+        for candidate in skill_config_candidates(candidate_skill_name):
+            if candidate.exists():
+                value = json.loads(candidate.read_text(encoding="utf-8"))
+                if isinstance(value, dict):
+                    value["_configPath"] = str(candidate)
+                    value["_configName"] = candidate_skill_name
+                    return value
     return {}
 
 
@@ -45,14 +66,13 @@ def resolve_secret(source: str | None) -> str:
     return source
 
 
-PUBLISH_CONFIG = load_skill_config("publish-dev")
+PUBLISH_CONFIG = load_skill_config(SKILL_NAME, LEGACY_SKILL_NAME)
 DEFAULT_SCOPE = "default"
 DEFAULT_BASE_URL = str(PUBLISH_CONFIG.get("argocdBaseUrl") or "https://argocd.example.com").rstrip("/")
 DEFAULT_PROJECT = str(PUBLISH_CONFIG.get("argocdProject") or "project-dev")
 DEFAULT_DEFAULT_APPS = [str(item) for item in PUBLISH_CONFIG.get("defaultApps", []) if item]
 DEFAULT_ALL_APPS_NAME_FILTER = str(PUBLISH_CONFIG.get("allAppsNameFilter") or "")
 DEFAULT_RELEASE_TAG_PATTERN = re.compile(str(PUBLISH_CONFIG.get("releaseTagPattern") or r"^v0\.0\.\d+$"))
-KEYCHAIN_SERVICE = "codex.publish-dev.argocd"
 
 
 def utc_now() -> datetime:
@@ -185,7 +205,7 @@ def resolve_repo_path(requested_path: str | None) -> Path:
             return candidate.resolve()
         raise RuntimeError(f"RepoPath {to_home_relative(candidate)} 不存在，或不是可识别的发布仓库。")
 
-    env_candidates = [os.getenv("PUBLISH_DEV_REPO_PATH")]
+    env_candidates = [os.getenv("PUBLISH_GITLAB_ARGO_REPO_PATH"), os.getenv("PUBLISH_DEV_REPO_PATH")]
     candidates: list[Path] = []
     for value in env_candidates:
         if value:
@@ -220,9 +240,23 @@ def publish_state_directory(create_default: bool = False) -> Path | None:
         if create_default:
             return ensure_directory(candidate).resolve()
         return candidate.resolve() if candidate.exists() else candidate
+    default_dir = user_home() / ".codex" / "memories" / STATE_DIR_NAME
+    legacy_dir = user_home() / ".codex" / "memories" / LEGACY_STATE_DIR_NAME
+    if default_dir.exists():
+        return default_dir.resolve()
+    if legacy_dir.exists():
+        return legacy_dir.resolve()
     if not create_default:
         return None
-    return ensure_directory(user_home() / ".codex" / "memories" / "publish-dev").resolve()
+    return ensure_directory(default_dir).resolve()
+
+
+def state_file_path(state_dir: Path, file_name: str, legacy_file_name: str) -> Path:
+    candidate = state_dir / file_name
+    legacy_candidate = state_dir / legacy_file_name
+    if legacy_candidate.exists() and not candidate.exists():
+        return legacy_candidate
+    return candidate
 
 
 def run_git(repo_path: Path, *arguments: str) -> str:
@@ -555,24 +589,24 @@ def keychain_available() -> bool:
     return sys.platform == "darwin" and Path("/usr/bin/security").exists()
 
 
-def keychain_set_password(base_url: str, username: str, password: str) -> None:
+def keychain_set_password(base_url: str, username: str, password: str, service: str = KEYCHAIN_SERVICE) -> None:
     if not keychain_available():
         return
     account = keychain_account(base_url, username)
     subprocess.run(
-        ["security", "add-generic-password", "-U", "-a", account, "-s", KEYCHAIN_SERVICE, "-w", password],
+        ["security", "add-generic-password", "-U", "-a", account, "-s", service, "-w", password],
         check=True,
         capture_output=True,
         text=True,
     )
 
 
-def keychain_get_password(base_url: str, username: str) -> str | None:
+def keychain_get_password_from_service(base_url: str, username: str, service: str) -> str | None:
     if not keychain_available():
         return None
     account = keychain_account(base_url, username)
     process = subprocess.run(
-        ["security", "find-generic-password", "-a", account, "-s", KEYCHAIN_SERVICE, "-w"],
+        ["security", "find-generic-password", "-a", account, "-s", service, "-w"],
         check=False,
         capture_output=True,
         text=True,
@@ -580,6 +614,14 @@ def keychain_get_password(base_url: str, username: str) -> str | None:
     if process.returncode != 0:
         return None
     return process.stdout.strip()
+
+
+def keychain_get_password(base_url: str, username: str) -> str | None:
+    for service in [KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_SERVICE]:
+        password = keychain_get_password_from_service(base_url, username, service)
+        if password:
+            return password
+    return None
 
 
 def read_cached_credential(base_url: str, session_path: Path) -> dict[str, str] | None:
@@ -609,6 +651,7 @@ def save_cached_credential(base_url: str, username: str, password: str, session_
     }
     if keychain_available():
         metadata["keychainService"] = KEYCHAIN_SERVICE
+        metadata["legacyKeychainService"] = LEGACY_KEYCHAIN_SERVICE
         metadata["keychainAccount"] = keychain_account(base_url, username)
     else:
         metadata["password"] = password
@@ -988,8 +1031,8 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
     connection: GitLabConnection = plan.pop("_connection")
     state_dir = publish_state_directory(create_default=True)
     assert state_dir is not None
-    lock_path = state_dir / "publish-dev.lock.json"
-    result_path = state_dir / "publish-dev.last-result.json"
+    lock_path = state_file_path(state_dir, LOCK_FILE_NAME, LEGACY_LOCK_FILE_NAME)
+    result_path = state_file_path(state_dir, RESULT_FILE_NAME, LEGACY_RESULT_FILE_NAME)
     lock_token = os.urandom(8).hex()
     total_timeout_seconds = args.total_timeout_seconds or config_int(
         "totalTimeoutSeconds",
@@ -1136,7 +1179,7 @@ def doctor() -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="publish_dev.py")
+    parser = argparse.ArgumentParser(prog="publish_gitlab_argo.py")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     common = argparse.ArgumentParser(add_help=False)

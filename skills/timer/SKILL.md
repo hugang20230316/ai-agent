@@ -1,12 +1,12 @@
 ---
 name: timer
-description: Manage local scheduled jobs and timer-like background tasks across macOS and Windows, with an AI-workflow-focused default view. Use when the user asks to list, inspect, create, update, delete, enable, disable, start, run, launch, restart, stop, or check status of timers, scheduled tasks, launchd jobs, LaunchAgents, LaunchDaemons, cron jobs, at jobs, Windows Task Scheduler tasks, schtasks, or AI workflow background jobs such as Codex, OpenClaw, Hermes, Claude, Obsidian sync, MCP services, local AI gateways, browser automation daemons, agent automation, knowledge sync, or log sync.
+description: Manage personal AI-workflow timers across macOS and Windows through one Python entry point. Use when the user names the timer skill or command, asks about AI workflow timers such as Codex, OpenClaw, Hermes, Claude, Obsidian sync, MCP, local AI gateways, browser automation, agent automation, knowledge sync, or log sync, or explicitly asks for a full local timer inventory. Do not use by default for generic system or vendor scheduled jobs such as browser updates, Google or Chrome updates, system wake jobs, or unrelated launchd, cron, Task Scheduler, or schtasks items.
 ---
 
 # Timer
 
-Use this skill to manage local scheduled jobs through one Python entry point.
-Default views show jobs with strong AI workflow evidence; use `--all` for full inventory.
+Use this skill to inspect and manage personal AI-workflow timers through one Python entry point.
+Default views show jobs with strong AI workflow evidence; use `--all` only for explicit full-inventory requests.
 
 ## Entry Point
 
@@ -23,6 +23,7 @@ python3 ~/.codex/skills/timer/scripts/timer_manager.py <command>
 ```
 
 Prefer `--json` when another tool or agent will consume the result.
+Human-readable `list` output uses Chinese headers by default; pass `--lang en` for English headers.
 
 ## Commands
 
@@ -31,6 +32,7 @@ Read commands:
 ```bash
 timer list
 timer list --all
+timer list --lang en
 timer get <id>
 timer status <id>
 ```
@@ -52,8 +54,17 @@ timer restart <id> --apply
 timer stop <id> --apply
 ```
 
-`run` is an alias of `launch`. `lunch` is accepted as a typo alias of `launch`.
-Chinese aliases are accepted for common operations: `开启`, `执行`, `停止`, `状态`.
+CLI commands are English-only. Chinese operation words are agent-only intent terms, not terminal subcommands:
+
+- `列出`, `查看全部`: use `timer list`
+- `查看`, `状态`: use `timer status <id>` or `timer get <id>`
+- `新增`, `创建`: use `timer create --file timer.json`
+- `修改`, `更新`: use `timer update <id> --file timer.json`
+- `删除`: use `timer delete <id>`
+- `开启`, `启动`: use `timer start <id>`
+- `执行`, `运行`: use `timer launch <id>`
+- `重启`: use `timer restart <id>`
+- `停止`: use `timer stop <id>`
 
 ## Safety Rules
 

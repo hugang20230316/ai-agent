@@ -19,13 +19,13 @@
 - 不把完整对话、完整工具输出、超长日志原文、超长接口响应原文或浏览器会话当作知识库主体；这类内容不是因为敏感，而是因为可读性和复用价值低。确实需要保留证据时，只摘取关键片段或记录本机私有位置。
 - 默认生成候选日志，状态为 `候选`。
 - 即使用户要求写入 Obsidian，也默认先生成候选摘要并等待确认；除非用户明确要求立即写入候选区。
-- 只有用户明确确认后，候选日志才可以进入正式业务域；候选日志不直接改变 agent 行为。
+- 只有用户明确确认后，候选日志才可以从 Inbox 进入 Daily 日期目录；候选日志不直接改变 agent 行为。
 - 规则和 skill 的执行源仍然是个人规则仓库。Obsidian 中的候选内容只用于整理、复盘和人工确认，不直接改变 agent 行为。
 - 当前会话中用户已经明确要求处理规则问题时，Obsidian 不作为规则修改前置审批；先按项目治理规则热修 `rules/`，再按需把失败模式、改动和验证情况写成候选证据。
 - 自动扫描、历史会话和未确认模式不得直接升级规则；只能生成候选，等用户确认稳定、可复用且会影响 agent 行为后再进入规则或 skill 修改。
-- 候选生成器必须根据证据自行判断 `domain`、`tags`、`related_issues`、`pattern_candidate`、归宿链接和孤本/重复情况。没有明确证据时可以留空或写明检索依据，但不得把“人工复核标签和归宿”“人工复核关联判断”“确认是否升级为规则/skill/正式知识”作为默认待办。
+- 候选生成器必须根据证据自行判断 `log_kind`、`domain`、`tags`、`related_issues` 和正文小节。没有明确证据时可以留空或写明边界，但不得把“人工复核标签和归宿”“人工复核关联判断”“确认是否升级为规则/skill/正式知识”作为默认待办。
 - 当前会话已经按用户要求修改规则或 skill 时，不再把同一问题写成“是否升级为规则/skill”的候选待办；候选只记录失败模式、已改文件、行为边界和验证状态。
-- 知识库自动化只维护一个 `personal-knowledge` skill；候选生成、候选写入、审批、Daily 索引、规则或 skill 升级都作为它的子功能，不再拆多个知识库 skill。
+- 知识库自动化只维护一个 `personal-knowledge` skill；候选生成、候选写入、审批、Daily 已采纳日志、规则或 skill 升级都作为它的子功能，不再拆多个知识库 skill。
 - 方案、总结和知识库条目不要按发布编号命名；只有正式稳定并准备对外分发时，才考虑编号。
 - 单个 session 默认产出 ≤1 个候选；只有用户在该 session 中明确确认了 ≥2 个相互独立的知识点（不同决策、不同工作流、不同坑点），才允许拆分；同一主题的不同视角应合并为一条。
 - 私有 Obsidian 候选可以保留必要的项目、字段、接口、方法、问题编号和环境上下文；升级为公开规则、公开文档、可同步 skill 或跨项目复用条目时，必须去场景化，项目专属约束放回对应项目规则。
@@ -49,14 +49,14 @@
 
 ## 采集排除清单
 
-扫描器默认排除以下会话，不写入 Daily，也不产候选；人工捕获前同样要先比对本清单：
+扫描器默认排除以下会话，不产候选；人工捕获前同样要先比对本清单：
 
 - `session_id` 匹配 `api-*`：CLI 内部 LLM 辅助调用（标题生成、tag 生成、follow-up 生成等），不是用户与 agent 的真实协作会话。
 - 没有 assistant 回复的会话：只有 user 消息、只有错误码、只有连接中断或仅工具日志。
 - 以 `ECONNRESET`、API 错误、连接失败、立即 `/exit` 或会话夭折结束的会话。
 - 单轮寒暄会话：user 首条消息长度 ≤ 20 字符，且没有后续语义内容。
 
-排除掉的会话不需要在 Daily 留索引条目；如果用户事后要求追溯，再按需补记。
+排除掉的会话不需要留索引条目；如果用户事后要求追溯，再按需补记。
 
 ## 业务域
 
@@ -68,7 +68,7 @@
 - `04-需求与文档`：需求、原型、PRD、技术调研、方案文档和写作规范。
 - `05-交付与验证`：测试、QA、发布、GitHub 同步、dev 发布和回归。
 
-不要因为单次任务新增顶层域。新日志可以先写入 `AgentKnowledge/Inbox/` 便于人工处理，但 `domain` 必须选择上面 5 个业务域之一，不能把 `Inbox` 当作归宿。
+不要因为单次任务新增顶层域。新日志可以先写入 `AgentKnowledge/Inbox/YYYY-MM-DD/<标题>.md` 便于人工处理，但 `domain` 必须选择上面 5 个业务域之一，不能把 `Inbox` 当作归宿。
 
 ## 候选条目格式
 
@@ -80,21 +80,28 @@
 ---
 type: agent-log
 status: 候选
+log_kind: feedback
 domain: 01-Agent工作台
 tags: []
 source: codex
+session_id: "真实会话ID"
+created_at: "2026-05-28T12:34:56+08:00"
+reviewed_at: ""
+review_count: 0
+evidence_hash: "内容哈希"
+lifecycle_reason: ""
 related_issues: []
-pattern_candidate: ""
+duplicate_of: []
 ---
 ```
 
-`source` 必填，取值为 `codex`、`claude`、`hermes` 或 `openclaw`，表示候选对应的 CLI 会话来源。扫描器生成的候选可以额外写 `session_id`，用于去重、覆盖旧候选和追溯原始会话；会话内人工捕获可省略。
+`log_kind` 只能取 `feedback`、`incident`、`change`、`decision`、`workflow`、`research` 或 `plan`。`source` 必填，取值为 `codex`、`claude`、`hermes` 或 `openclaw`，表示候选对应的 CLI 会话来源。扫描器生成的候选必须写真实 `session_id`，用于去重、覆盖旧候选和追溯原始会话。
 
 `domain` 是唯一业务归宿，只能使用 `01-Agent工作台`、`02-研发实现`、`03-排查与观测`、`04-需求与文档`、`05-交付与验证`。`tags` 使用简短中文标签，来自会话语义，例如 `开发`、`学习`、`解决 bug`、`质量把控`。
 
-`related_issues` 写已确认有关联的历史日志；没有证据就留空。`pattern_candidate` 用自然语言写疑似模式，不做稳定 ID，不使用 `repeat_key` 和 `repeat_count`。
+`related_issues` 只写已确认有关联的历史日志；没有证据就留空。不使用 `pattern_candidate`、`repeat_key` 和 `repeat_count`；疑似模式、边界和关联判断写进对应正文小节。
 
-`domain`、`tags`、`related_issues` 和 `pattern_candidate` 由 agent 或扫描器根据证据填写。候选正文不得要求用户手动判断这些字段是否准确；需要保留不确定性时，在 `关联判断` 中写清检索依据和未确认边界。
+`domain`、`tags`、`related_issues` 和正文小节由 agent 或扫描器根据证据填写。候选正文不得要求用户手动判断这些字段是否准确；需要保留不确定性时，在对应小节写清证据边界。
 
 用户明确纠正、抱怨、发火、辱骂或指出问题时，额外写：
 
@@ -107,30 +114,29 @@ feedback_target: 验证流程
 
 默认不要写 `agent_load`、`contexts`、`sensitivity`、`secret_policy`、`secret_refs`、`repeat_key`、`repeat_count`、`simple_tags`、`primary_home` 或 `topics`。候选日志不在 frontmatter 中保留凭据字段；确实需要说明敏感配置参与排查时，只在正文里用脱敏中文描述，不得包含真实凭据、连接串、token 或可反推出凭据的片段。
 
-正文至少包含：
+正文必须包含 `摘要`，其余小节按 `log_kind` 选择，不强制所有日志套同一组字段：
 
-- `摘要`
-- `关键事实`
-- `证据与资料`
-- `具体问题`
-- `解决方案`
-- `验证情况`
-- `关联判断`
-- `待处理`
+- `feedback`：`反馈`、`暴露的问题`、`处置`、`规则影响`、`关联`
+- `incident`：`现象`、`原因`、`处理`、`验证`、`关联`
+- `change`：`修改`、`验证`、`影响`、`关联`
+- `decision`：`决策`、`依据`、`影响`、`关联`
+- `workflow`：`流程`、`约束`、`触发条件`、`验证方式`、`关联`
+- `research`：`结论`、`依据`、`适用边界`、`关联`
+- `plan`：`方案`、`取舍`、`下一步`、`关联`
 
-`关联判断` 必须写出归宿 wiki 链接，例如 `归宿：[[01-Agent工作台/01-Agent工作台|01-Agent工作台]]`。归宿链接指向业务域枢纽页，不指向目录 `README.md`，避免知识图谱中心被说明文件占据。不要把原始聊天当附件或引用块粘进去；可以压缩，但关键语义、证据、资料和验证边界不能丢。
+不要把所有日志都写成 `关键事实`、`证据与资料`、`具体问题`、`解决方案`、`验证情况`、`关联判断`。不要把原始聊天当附件或引用块粘进去；可以压缩，但关键语义、证据、资料和验证边界不能丢。
 
-`待处理` 只写真实后续动作，例如等待系统重跑、补充测试、合并重复候选、按用户明确确认执行规则/skill 修改。没有真实后续动作时写 `无人工待办。归宿、标签和关联判断已由生成器根据证据写入。`，不得使用固定人工复核清单。
+真实后续动作只放在 `plan` 类型的 `下一步` 中，或放在具体小节的自然语言里。没有真实后续动作时不要写 `待处理` 章节，也不要写 `action_required` 字段。
 
-公开正文必须面向人读。`source_key`、`session_id`、`obsidian-log-sync` 标记、`turn_N`/`tool_N` 证据编号等内部追踪信息只能留在扫描器 JSON、frontmatter 或质量报告中，不得进入 Daily 正文；候选正文如需说明证据，改写成自然语言摘要。
+公开正文必须面向人读。`source_key`、`session_id`、`obsidian-log-sync` 标记、`turn_N`/`tool_N` 证据编号等内部追踪信息只能留在扫描器 JSON、frontmatter 或质量报告中，不得进入候选或 Daily 正文；候选正文如需说明证据，改写成自然语言摘要。
 
 候选标题与文件名由正文语义生成，不得直接截取 user 首条消息、会话起始内容或 CLI 自动会话标题。只能拿到首条消息（极短会话、未展开会话）时，整体不进候选。
 
 ## 扫描器写入红线
 
-- 扫描器以直接文件写入 vault 的 `AgentKnowledge/Inbox/` 或 `AgentKnowledge/Daily/` 作为标准通道；MCP 与 Local REST API 仅用于会话内人工写入。
+- 扫描器以直接文件写入 vault 的 `AgentKnowledge/Inbox/YYYY-MM-DD/<标题>.md` 作为标准通道；MCP 与 Local REST API 仅用于会话内人工写入。新候选不得使用 `AgentKnowledge/Inbox/YYYY-MM-DD-标题.md` 这类平铺路径。
 - 扫描器读取会话 JSONL 时，若工具输出含密码、token、cookie、session、连接串、API key 明文（包括工具本机配置文件原文），必须以 `secret_ref` 占位，原始值不能进入候选正文。
-- Daily 只作为当天可读索引。没有 assistant 处理、修复、验证或明确结论的会话不写 Daily；Daily 正文不得出现 `source_key`、`session_id`、`obsidian-log-sync`、`turn_N`/`tool_N`、`会话ID`、`来源`、`你指出`、`Agent 处理` 等调试字段或模板化过程字段。
+- Daily 只保存已采纳候选，路径为 `AgentKnowledge/Daily/YYYY-MM-DD/<标题>.md`。扫描器、质量门禁和 pending 写入不得直接写 Daily。Daily 正文不得出现 `查看候选`、`进入 Inbox`、`状态：候选`、`source_key`、`session_id`、`obsidian-log-sync`、`turn_N`/`tool_N`、`会话ID`、`来源`、`你指出`、`Agent 处理` 等调试字段或模板化过程字段。
 - 扫描器写入失败时只在自身日志记录失败原因，不改写到非 vault 路径，不把候选塞进任何 agent 上下文。
 - 扫描器只读本机私有配置声明的会话日志和已知 vault 目录，不读工具短期记忆、local 私有目录、运行时 session 目录、workspace 私有目录等其他位置。
 - 扫描器每跑完一批必须在自身日志输出本批自检统计：写入文件数、frontmatter schema 校验失败数、排除清单命中数、单 session 候选数分布、主题与正文语义脱节告警数。自检异常时本批整体回退或标红，不依赖人工事后审计发现 schema drift 或采集偏差。
@@ -141,7 +147,7 @@ feedback_target: 验证流程
 1. 先判断是否有可沉淀价值。
 2. 私有 Obsidian 写入默认保留上下文；仅处理生产级账号密码、token、cookie、session、API key、私钥、连接串、验证码、恢复码和助记词等凭据值。需要保留关联关系时，用 `secret_ref` 替代真实值。
 3. 生成候选摘要。
-4. 用户确认后写入 Obsidian 候选区或对应业务域。
+4. 用户确认后写入 Obsidian 候选区；候选被明确采纳后由生命周期步骤移动到 Daily 日期目录。
 5. 如果候选内容要升级成规则、skill、公开文档或同步到个人 GitHub，先按出口管控做脱敏和泛化，再说明会影响的文件和行为，并等待用户确认。
 
 会话内优先通过 Obsidian MCP 或 Local REST API 写入；如果用户已确认写入、vault 路径和写权限都明确，可以直接写入 vault。若写入通道或权限不明确，只输出候选摘要，不绕到其他路径。

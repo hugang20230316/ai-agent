@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from io import StringIO
 from pathlib import Path
 from unittest import mock
 
@@ -34,6 +35,7 @@ class TimerManagerTests(unittest.TestCase):
             logs=timer_manager.TimerLogs(),
             health=timer_manager.TimerHealth(),
             capabilities=timer_manager.TimerCapabilities(
+                can_update=True,
                 can_delete=True,
                 can_start=True,
                 can_stop=True,
@@ -142,18 +144,99 @@ class TimerManagerTests(unittest.TestCase):
         self.assertEqual(len(all_jobs), 2)
         self.assertEqual(all_jobs[1].scope, "system")
 
-    def test_cli_aliases_normalize_launch_commands(self) -> None:
-        with mock.patch.object(timer_manager, "control_job", return_value={"ok": True}) as control:
-            exit_code = timer_manager.main(["lunch", "timer-id"])
+    def test_cli_rejects_removed_command_aliases(self) -> None:
+        for command in ["run", "lunch", "执行", "开启", "停止", "状态"]:
+            with self.subTest(command=command), mock.patch("sys.stderr", StringIO()), self.assertRaises(SystemExit) as raised:
+                timer_manager.main([command, "timer-id"])
 
-        self.assertEqual(exit_code, 0)
-        control.assert_called_once_with("timer-id", "launch", False, False, False)
+            self.assertEqual(raised.exception.code, 2)
 
-        with mock.patch.object(timer_manager, "control_job", return_value={"ok": True}) as control:
-            exit_code = timer_manager.main(["执行", "timer-id"])
+    def test_cli_control_commands_pass_preview_and_apply_flags(self) -> None:
+        for command in ["enable", "disable", "start", "launch", "restart", "stop"]:
+            with self.subTest(command=command), mock.patch.object(
+                timer_manager,
+                "control_job",
+                return_value={"ok": True},
+            ) as control, mock.patch("sys.stdout", StringIO()):
+                exit_code = timer_manager.main([command, "timer-id"])
 
-        self.assertEqual(exit_code, 0)
-        control.assert_called_once_with("timer-id", "launch", False, False, False)
+            self.assertEqual(exit_code, 0)
+            control.assert_called_once_with("timer-id", command, False, False, False)
+
+            with self.subTest(command=f"{command} --apply"), mock.patch.object(
+                timer_manager,
+                "control_job",
+                return_value={"ok": True},
+            ) as control, mock.patch("sys.stdout", StringIO()):
+                exit_code = timer_manager.main([command, "timer-id", "--apply"])
+
+            self.assertEqual(exit_code, 0)
+            control.assert_called_once_with("timer-id", command, True, False, False)
+
+    def test_cli_returns_failure_when_backend_returncode_fails(self) -> None:
+        with mock.patch.object(
+            timer_manager,
+            "create_job",
+            return_value={"operation": "create", "bootstrap_returncode": 5},
+        ), mock.patch("sys.stdout", StringIO()):
+            exit_code = timer_manager.main(["create", "--file", "timer.json", "--apply"])
+
+        self.assertEqual(exit_code, 1)
+
+    def test_launchd_crud_preview_and_apply_paths_are_separated(self) -> None:
+        definition = {
+            "id": "com.example.codex-crud",
+            "backend": "launchd",
+            "scope": "user",
+            "trigger": {"type": "interval", "interval_seconds": 60},
+            "action": {"command": "/bin/echo", "args": ["codex"]},
+        }
+        with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+            path = Path(handle.name)
+            handle.write(timer_manager.json.dumps(definition))
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                preview_source = Path(directory) / "com.example.codex-crud.plist"
+                with mock.patch.object(timer_manager, "launchd_source_for_label", return_value=preview_source), mock.patch.object(
+                    timer_manager,
+                    "write_launchd_plist",
+                ) as write_plist, mock.patch.object(timer_manager, "run_command") as run_command:
+                    preview = timer_manager.create_job(str(path), apply=False, allow_non_ai=False)
+
+                self.assertTrue(preview["dry_run"])
+                write_plist.assert_not_called()
+                run_command.assert_not_called()
+
+                job = self.launchd_job()
+                job.native_id = "com.example.codex-crud"
+                job.id = timer_manager.stable_id("launchd", "user", job.native_id)
+                job.source = str(preview_source)
+                with mock.patch.object(timer_manager, "find_job", return_value=job), mock.patch.object(
+                    timer_manager,
+                    "launchd_control",
+                ) as launchd_control, mock.patch.object(timer_manager, "write_launchd_plist") as write_plist, mock.patch.object(
+                    timer_manager,
+                    "run_command",
+                    return_value=timer_manager.subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+                ) as run_command:
+                    update = timer_manager.update_job(job.id, str(path), apply=True, allow_system=False, allow_non_ai=False)
+
+                self.assertFalse(update["dry_run"])
+                launchd_control.assert_called_once()
+                write_plist.assert_called_once()
+                run_command.assert_called_once()
+
+                with mock.patch.object(timer_manager, "find_job", return_value=job), mock.patch.object(
+                    timer_manager,
+                    "launchd_control",
+                ) as launchd_control, mock.patch.object(Path, "unlink") as unlink:
+                    delete_preview = timer_manager.delete_job(job.id, confirm=None, allow_system=False, allow_non_ai=False)
+
+                self.assertTrue(delete_preview["dry_run"])
+                launchd_control.assert_not_called()
+                unlink.assert_not_called()
+        finally:
+            path.unlink(missing_ok=True)
 
     def test_launchd_create_preview_requires_ai_evidence(self) -> None:
         definition = {
@@ -190,6 +273,127 @@ class TimerManagerTests(unittest.TestCase):
 
         self.assertNotIn("enable", [part for call in calls for part in call])
         self.assertIn("kickstart", [part for call in calls for part in call])
+
+    def test_list_output_defaults_to_chinese_with_description_and_interval(self) -> None:
+        job = timer_manager.timer_to_dict(self.launchd_job())
+        job["pid"] = 12345
+        job["health"]["last_exit_code"] = 0
+        job["trigger"]["schedule"] = "every 10800s"
+        job["trigger"]["interval_seconds"] = 10800
+
+        output = StringIO()
+        with mock.patch("sys.stdout", output), mock.patch.object(
+            timer_manager.shutil,
+            "get_terminal_size",
+            return_value=timer_manager.os.terminal_size((160, 20)),
+        ):
+            timer_manager.print_result([job], as_json=False)
+
+        lines = output.getvalue().splitlines()
+        self.assertIn("标识", lines[0])
+        self.assertIn("描述", lines[0])
+        self.assertIn("间隔", lines[0])
+        self.assertIn("状态", lines[0])
+        self.assertIn("启用", lines[0])
+        self.assertIn("加载", lines[0])
+        self.assertIn("计划", lines[0])
+        self.assertIn("PID", lines[0])
+        self.assertIn("退出", lines[0])
+        self.assertIn("动作", lines[0])
+        self.assertIn("来源", lines[0])
+        self.assertIn("launchd:user:com.example.codex-test", lines[1])
+        self.assertIn("Codex Test", lines[1])
+        self.assertIn("3h", lines[1])
+        self.assertIn("停止", lines[1])
+        self.assertIn("是", lines[1])
+        self.assertIn("12345", lines[1])
+        self.assertIn("0", lines[1])
+        self.assertIn("true", lines[1])
+
+    def test_list_output_can_use_english_headers(self) -> None:
+        job = timer_manager.timer_to_dict(self.launchd_job())
+        job["trigger"]["interval_seconds"] = 300
+
+        output = StringIO()
+        with mock.patch("sys.stdout", output), mock.patch.object(
+            timer_manager.shutil,
+            "get_terminal_size",
+            return_value=timer_manager.os.terminal_size((160, 20)),
+        ):
+            timer_manager.print_result([job], as_json=False, lang="en")
+
+        lines = output.getvalue().splitlines()
+        self.assertIn("ID", lines[0])
+        self.assertIn("DESCRIPTION", lines[0])
+        self.assertIn("INTERVAL", lines[0])
+        self.assertIn("STATE", lines[0])
+        self.assertIn("SCHEDULE", lines[0])
+        self.assertIn("5m", lines[1])
+        self.assertIn("stopped", lines[1])
+
+    def test_narrow_list_output_keeps_pid_and_exit_untruncated(self) -> None:
+        job = timer_manager.timer_to_dict(self.launchd_job())
+        job["pid"] = 12345
+        job["health"]["last_exit_code"] = 0
+        job["trigger"]["schedule"] = "every 10800s"
+
+        output = StringIO()
+        with mock.patch("sys.stdout", output), mock.patch.object(
+            timer_manager.shutil,
+            "get_terminal_size",
+            return_value=timer_manager.os.terminal_size((80, 20)),
+        ):
+            timer_manager.print_result([job], as_json=False)
+
+        lines = output.getvalue().splitlines()
+        self.assertNotIn("ACTION", lines[0])
+        self.assertIn("描述", lines[0])
+        self.assertIn("间隔", lines[0])
+        self.assertIn("PID", lines[0])
+        self.assertIn("退出", lines[0])
+        self.assertIn("计划", lines[0])
+        self.assertIn("12345", lines[1])
+        self.assertIn("0", lines[1])
+        self.assertIn("停止", lines[1])
+        self.assertLessEqual(max(len(line) for line in lines), 80)
+
+    def test_extreme_pid_and_exit_are_not_truncated(self) -> None:
+        job = timer_manager.timer_to_dict(self.launchd_job())
+        job["pid"] = 987654321
+        job["health"]["last_exit_code"] = -1073741510
+
+        output = StringIO()
+        with mock.patch("sys.stdout", output), mock.patch.object(
+            timer_manager.shutil,
+            "get_terminal_size",
+            return_value=timer_manager.os.terminal_size((80, 20)),
+        ):
+            timer_manager.print_result([job], as_json=False)
+
+        line = output.getvalue().splitlines()[1]
+        self.assertIn("987654321", line)
+        self.assertIn("-1073741510", line)
+
+    def test_json_list_output_preserves_full_payload(self) -> None:
+        job = timer_manager.timer_to_dict(self.launchd_job())
+
+        output = StringIO()
+        with mock.patch("sys.stdout", output):
+            timer_manager.print_result([job], as_json=True)
+
+        payload = timer_manager.json.loads(output.getvalue())
+        self.assertEqual(payload, [job])
+
+    def test_status_output_stays_json(self) -> None:
+        job = self.launchd_job()
+        output = StringIO()
+        with mock.patch.object(timer_manager, "find_job", return_value=job), mock.patch("sys.stdout", output):
+            exit_code = timer_manager.main(["status", job.id])
+
+        self.assertEqual(exit_code, 0)
+        payload = timer_manager.json.loads(output.getvalue())
+        self.assertEqual(payload["id"], job.id)
+        self.assertEqual(payload["trigger"]["type"], "interval")
 
 
 if __name__ == "__main__":

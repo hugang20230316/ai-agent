@@ -18,8 +18,8 @@ For the current Obsidian vault layout, read `references/obsidian-structure.md` b
 | Subfunction | Use When | Result |
 | --- | --- | --- |
 | `capture` | A task reaches a meaningful node or the user asks to summarize, record, or save knowledge | Private candidate summary |
-| `write-candidate` | The user confirms writing a candidate to Obsidian, or explicitly asks for immediate candidate write | Candidate entry in `AgentKnowledge/Inbox` or `AgentKnowledge/Daily` |
-| `scheduled-scan` | An external scheduler (launchd / cron) periodically reads CLI session logs and proposes candidates | Candidate entry written directly to vault `AgentKnowledge/Inbox` or `AgentKnowledge/Daily` with `source` set to the originating CLI and a real `session_id` for dedupe |
+| `write-candidate` | The user confirms writing a candidate to Obsidian, or explicitly asks for immediate candidate write | Candidate entry in `AgentKnowledge/Inbox/YYYY-MM-DD/<title>.md` |
+| `scheduled-scan` | An external scheduler (launchd / cron) periodically reads CLI session logs and proposes candidates | Candidate entry written directly to vault `AgentKnowledge/Inbox/YYYY-MM-DD/<title>.md` with `source` set to the originating CLI and a real `session_id` for dedupe |
 | `review-candidate` | The user asks to approve, archive, delete, or move a candidate | Updated candidate status or target domain |
 | `promote` | A candidate may become a reusable rule, skill, template, or checklist | Proposed rule or skill change after separate confirmation |
 | `load-approved` | Future work needs reusable personal knowledge | Only user-approved knowledge from the allowlist |
@@ -42,26 +42,29 @@ The scanner uses `source` to tag candidates and `session_id` (derived from the J
 1. Decide whether the content has long-term value.
 2. Preserve useful private context for Obsidian by default. Only replace credential values that can directly grant access, such as production passwords, tokens, cookies, sessions, API keys, private keys, connection strings, recovery codes, verification codes, and seed phrases. Use `secret_ref` only as a reference name, never as a secret store.
 3. Produce a candidate log with `status: 候选`.
-4. If writing is confirmed and the Obsidian channel is available, write only to `AgentKnowledge/Inbox` or `AgentKnowledge/Daily`.
-5. If the user approves a candidate, move it into the smallest matching business domain.
+4. If writing is confirmed and the Obsidian channel is available, write only to `AgentKnowledge/Inbox/YYYY-MM-DD/<title>.md`.
+5. If the user approves a candidate, set `status: 已采纳`; the lifecycle step moves it to `AgentKnowledge/Daily/YYYY-MM-DD/<title>.md`.
 6. If a candidate should affect future agent behavior, ask for separate confirmation before changing `rules/` or this skill.
 
 Current-session rule corrections are a separate hotfix path, not candidate promotion. If the user explicitly says a rule missed, a rule is hard-coded, the same rule failure repeated, or the rule category is wrong, follow project-governance hotfix rules first; optionally capture the failure mode and verification result as an Obsidian candidate after the rule change.
 
-AI must decide candidate `domain`, `tags`, `related_issues`, `pattern_candidate`, home link, and orphan/repeat judgement from evidence. Do not create human tasks asking the user to review those fields, or to decide whether an item should become a rule, skill, or formal knowledge by default. Human review is reserved for explicit approval actions such as approve, archive, delete, merge, or a separate confirmed promotion to rules/skills.
+AI must decide candidate `log_kind`, `domain`, `tags`, `related_issues`, and useful body sections from evidence. Do not create human tasks asking the user to review those fields, or to decide whether an item should become a rule, skill, or formal knowledge by default. Human review is reserved for explicit approval actions such as approve, archive, delete, merge, or a separate confirmed promotion to rules/skills.
 
 ## Candidate Body
 
 Keep candidate entries short and readable, but do not drop key meaning, evidence, sources, or validation boundaries.
 
-- `摘要`: what reusable knowledge was formed
-- `关键事实`: the facts needed to understand the note later
-- `证据与资料`: evidence refs, source material, or a short readable evidence summary
-- `具体问题`: the user feedback, bug, decision gap, or observed issue
-- `解决方案`: what changed or should change
-- `验证情况`: what was verified and what remains unverified
-- `关联判断`: home domain, confirmed related notes, suspected pattern, orphan/repeat judgement
-- `待处理`: concrete human decisions or system follow-ups only. Write `无人工待办。归宿、标签和关联判断已由生成器根据证据写入。` when there is no real follow-up.
+Every note has `log_kind` and `摘要`. After that, use only the sections that fit the log kind:
+
+- `feedback`: `反馈`, `暴露的问题`, `处置`, `规则影响`, `关联`
+- `incident`: `现象`, `原因`, `处理`, `验证`, `关联`
+- `change`: `修改`, `验证`, `影响`, `关联`
+- `decision`: `决策`, `依据`, `影响`, `关联`
+- `workflow`: `流程`, `约束`, `触发条件`, `验证方式`, `关联`
+- `research`: `结论`, `依据`, `适用边界`, `关联`
+- `plan`: `方案`, `取舍`, `下一步`, `关联`
+
+Do not force all notes into fixed fields such as `关键事实`, `证据与资料`, `具体问题`, `解决方案`, `验证情况`, and `关联判断`. Do not write a generic `待处理` section. A real follow-up belongs in `下一步`, and only for actionable work that will actually continue.
 
 Do not attach full chat, full command output, oversized logs, oversized interface responses, screenshots, or browser sessions as the body of the note.
 
@@ -94,25 +97,32 @@ Default metadata:
 ---
 type: agent-log
 status: 候选
+log_kind: feedback
 domain: 01-Agent工作台
 tags: []
 source: codex
+session_id: "real-session-id"
+created_at: "2026-05-28T12:34:56+08:00"
+reviewed_at: ""
+review_count: 0
+evidence_hash: "content-hash"
+lifecycle_reason: ""
 related_issues: []
-pattern_candidate: ""
+duplicate_of: []
 ---
 ```
 
-`source` is required and must be one of `codex`, `claude`, `hermes`, `openclaw`; it tags the originating CLI. Scanner-generated candidates may add `session_id` so the sync tool can dedupe and replace stale files; in-session human captures may omit it.
+`log_kind` must be one of `feedback`, `incident`, `change`, `decision`, `workflow`, `research`, or `plan`. `source` is required and must be one of `codex`, `claude`, `hermes`, `openclaw`; it tags the originating CLI. Scanner-generated candidates must include a real `session_id` so the sync tool can dedupe and replace stale files.
 
-`domain` is the note's single business home, not the storage folder. Use one of `01-Agent工作台`, `02-研发实现`, `03-排查与观测`, `04-需求与文档`, `05-交付与验证`. Notes may be stored under `AgentKnowledge/Inbox/` while still having a non-Inbox `domain`.
+`created_at` must include date and time, at least to seconds. Do not use date-only values such as `2026-05-28`.
+
+`domain` is the note's single business home, not the storage folder. Use one of `01-Agent工作台`, `02-研发实现`, `03-排查与观测`, `04-需求与文档`, `05-交付与验证`. Notes may be stored under `AgentKnowledge/Inbox/YYYY-MM-DD/` while still having a non-Inbox `domain`.
 
 Use short Chinese `tags` inferred from the session. Field names may stay English for machine stability, but values should be Chinese unless they are fixed source ids or code identifiers.
 
-Use `related_issues` for confirmed related notes and `pattern_candidate` for a human-readable suspected pattern. Do not use `repeat_key` or `repeat_count`; repeated issues are too fuzzy for a stable key in the default log format.
+Use `related_issues` only for confirmed related notes. Do not use `pattern_candidate`, `repeat_key`, or `repeat_count`; suspected patterns belong in the appropriate body section such as `关联`, `依据`, or `规则影响`.
 
-The generator must fill `domain`, `tags`, `related_issues`, and `pattern_candidate` itself from available evidence. Empty related notes are acceptable only when the body explains the search basis; do not turn missing relations into a human review checkbox.
-
-In `关联判断`, link the home domain to a semantic hub page such as `[[01-Agent工作台/01-Agent工作台|01-Agent工作台]]`. Do not link candidate logs to directory `README.md` files as their home; README links make Obsidian Graph centrality reflect folder documentation instead of meaningful knowledge domains.
+The generator must fill `domain`, `tags`, `related_issues`, and section content itself from available evidence. Empty related notes are acceptable; do not turn missing relations into a human review checkbox.
 
 Only when the user explicitly corrects, complains, gets angry, insults, or otherwise gives a high-value feedback signal, add:
 
@@ -127,16 +137,19 @@ Human-facing bodies must not expose scanner tracking details. Keep `source_key`,
 
 The default schema must not include `agent_load`, `contexts`, `sensitivity`, `secret_policy`, `secret_refs`, `repeat_key`, `repeat_count`, `simple_tags`, `primary_home`, or `topics`. Do not emit deprecated fields such as `asset_type`, `source_key`, `session_date`, or use `type: knowledge-candidate` / `type: agent-log-candidate`.
 
-The frontmatter field set above and the body section list are the single authoritative schema for both scanner and in-session captures. Adding a new default field requires updating this section first, then the scanner and tests — never the reverse.
+Do not add version fields to personal knowledge notes. This is a new personal knowledge base, not a published versioned product.
+
+The frontmatter field set above and the body section list are the single authoritative schema for scanner output. Adding a new default field requires updating this section first, then the scanner and tests — never the reverse.
 
 `AgentKnowledge/Inbox/候选池.md` is a human guide, not a candidate note. Candidate Base views should exclude it.
 
 Write channels:
 
-- The scheduled scanner writes directly to `AgentKnowledge/Inbox/` or `AgentKnowledge/Daily/` files in the vault. Direct file write is the only supported channel for the scanner.
+- The scheduled scanner writes directly to `AgentKnowledge/Inbox/YYYY-MM-DD/<title>.md` files in the vault. Direct file write is the only supported channel for the scanner. New scanner output must not use flat paths such as `AgentKnowledge/Inbox/YYYY-MM-DD-title.md`.
 - In-session captures may use the Obsidian MCP or Local REST API when available; otherwise they fall back to direct file write or output the candidate summary in the reply.
 - If no channel is reachable, output the candidate summary in the reply and do not write through another path.
-- Daily is a readable date index only. Do not write sessions with no assistant handling, fix, verification, or clear conclusion; Daily body must not include `source_key`, `session_id`, `obsidian-log-sync`, raw evidence ids, `会话ID`, `来源`, `你指出`, or `Agent 处理`.
+- Daily stores only approved candidate notes under `AgentKnowledge/Daily/YYYY-MM-DD/<title>.md`. Generated logs, timer output, quality-gate output, and pending files must not write Daily directly.
+- Daily notes must not include candidate-index text such as `查看候选`, `进入 Inbox`, or `状态：候选`; they also must not include `source_key`, `session_id`, `obsidian-log-sync`, raw evidence ids, `会话ID`, `来源`, `你指出`, or `Agent 处理`.
 - Scanner and writer code must block old-schema candidates before writing to Obsidian. If output contains `type: agent-log-candidate`, `status: candidate`, `agent_load`, `domain: Inbox`, `contexts`, `sensitivity`, `secret_policy`, or `secret_refs: []`, fix the generator instead of letting the file through.
 
 ## Vault Structure Maintenance

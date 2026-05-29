@@ -13,6 +13,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import unicodedata
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -60,6 +61,26 @@ COMMON_NOISE_TERMS = (
 
 USER_LAUNCH_AGENTS = Path.home() / "Library/LaunchAgents"
 SUPPORTED_WRITE_BACKENDS = {"launchd", "windows-task-scheduler"}
+
+
+LIST_COLUMNS = (
+    ("id", "ID", "标识", 20, 52, "core"),
+    ("description", "DESCRIPTION", "描述", 10, 26, "core"),
+    ("interval", "INTERVAL", "间隔", 7, 14, "core"),
+    ("state", "STATE", "状态", 7, 8, "core"),
+    ("enabled", "EN", "启用", 2, 4, "core"),
+    ("pid", "PID", "PID", 5, 0, "core"),
+    ("exit", "EXIT", "退出", 4, 4, "core"),
+    ("loaded", "LOAD", "加载", 4, 4, "optional"),
+    ("schedule", "SCHEDULE", "计划", 10, 18, "core"),
+    ("action", "ACTION", "动作", 10, 20, "optional"),
+    ("scope", "SCOPE", "范围", 4, 6, "optional"),
+    ("source", "SOURCE", "来源", 10, 26, "optional"),
+)
+OPTIONAL_LIST_COLUMN_PRIORITY = ("loaded", "scope", "action", "source")
+NON_TRUNCATING_LIST_COLUMNS = {"pid", "exit"}
+LIST_SHRINK_PRIORITY = ("source", "action", "description", "schedule", "id", "state", "scope")
+SUPPORTED_LIST_LANGUAGES = {"zh", "en"}
 
 
 @dataclass
@@ -233,20 +254,310 @@ def timer_to_dict(job: TimerJob) -> dict[str, Any]:
     return asdict(job)
 
 
-def print_result(payload: Any, as_json: bool) -> None:
+def bool_cell(value: Any, lang: str) -> str:
+    """Return a compact human-readable boolean cell."""
+
+    if value is True:
+        return "Y" if lang == "en" else "是"
+    if value is False:
+        return "N" if lang == "en" else "否"
+    return "-"
+
+
+def state_cell(item: dict[str, Any], lang: str) -> str:
+    """Return the runtime state cell for a timer row."""
+
+    if item.get("running") is True:
+        return "running" if lang == "en" else "运行"
+    if item.get("loaded") is False:
+        return "unloaded" if lang == "en" else "未加载"
+    if item.get("running") is False:
+        return "stopped" if lang == "en" else "停止"
+    return "unknown" if lang == "en" else "未知"
+
+
+def display_width(value: Any) -> int:
+    """Return terminal display width for plain text."""
+
+    text = "" if value is None else str(value)
+    width = 0
+    for char in text:
+        width += 2 if unicodedata.east_asian_width(char) in {"F", "W"} else 1
+    return width
+
+
+def display_ljust(value: Any, width: int) -> str:
+    """Pad text according to terminal display width."""
+
+    text = "" if value is None else str(value)
+    return text + (" " * max(0, width - display_width(text)))
+
+
+def shorten_middle(value: Any, width: int) -> str:
+    """Truncate long cell values while preserving both ends."""
+
+    text = "-" if value is None or value == "" else str(value)
+    if width <= 0 or display_width(text) <= width:
+        return text
+    if width <= 3:
+        return text[:width]
+    chars = list(text)
+    prefix = ""
+    suffix = ""
+    prefix_width = max(1, (width - 3) // 2)
+    suffix_width = max(1, width - prefix_width - 3)
+    for char in chars:
+        if display_width(prefix + char) > prefix_width:
+            break
+        prefix += char
+    for char in reversed(chars):
+        if display_width(char + suffix) > suffix_width:
+            break
+        suffix = char + suffix
+    shortened = f"{prefix}...{suffix}"
+    while display_width(shortened) > width and suffix:
+        suffix = suffix[1:]
+        shortened = f"{prefix}...{suffix}"
+    return shortened
+
+
+def compact_path(value: Any, *, basename_only: bool = False) -> str:
+    """Return a short path-like value for list output."""
+
+    text = "" if value is None else str(value)
+    if not text:
+        return "-"
+    if "/" in text or "\\" in text:
+        parts = [part for part in re.split(r"[\\/]+", text.rstrip("/\\")) if part]
+        basename = parts[-1] if parts else text
+        if basename_only:
+            return basename
+        if len(parts) >= 2:
+            return f"{parts[-2]}/{basename}"
+        return basename
+    return text
+
+
+def action_cell(item: dict[str, Any]) -> str:
+    """Return a compact command preview for a timer row."""
+
+    action = item.get("action") or {}
+    command = compact_path(action.get("command"))
+    args = [compact_path(arg) for arg in action.get("args") or []]
+    if command == "-":
+        return " ".join(args[:2]) or "-"
+    return " ".join([command, *args[:2]])
+
+
+def format_interval(seconds: int) -> str:
+    """Return a compact interval string."""
+
+    if seconds % 3600 == 0:
+        return f"{seconds // 3600}h"
+    if seconds % 60 == 0:
+        return f"{seconds // 60}m"
+    return f"{seconds}s"
+
+
+def interval_cell(item: dict[str, Any]) -> str:
+    """Return the timer interval separate from the raw schedule."""
+
+    trigger = item.get("trigger") or {}
+    interval = trigger.get("interval_seconds")
+    if interval is not None:
+        return format_interval(int(interval))
+    return "-"
+
+
+def schedule_cell(item: dict[str, Any], lang: str) -> str:
+    """Return a localized schedule summary for list output."""
+
+    trigger = item.get("trigger") or {}
+    interval = trigger.get("interval_seconds")
+    if interval is not None:
+        interval_text = format_interval(int(interval))
+        return f"every {interval_text}" if lang == "en" else f"每 {interval_text}"
+    if trigger.get("run_at_load"):
+        return "run at load" if lang == "en" else "加载时"
+    if trigger.get("type") == "manual":
+        return "manual" if lang == "en" else "手动"
+    return str(trigger.get("schedule") or trigger.get("type") or "-")
+
+
+def description_cell(item: dict[str, Any]) -> str:
+    """Return a short purpose-oriented description for list output."""
+
+    name = str(item.get("name") or "").strip()
+    if name:
+        return name
+    action = action_cell(item)
+    if action != "-":
+        return action
+    native_id = str(item.get("native_id") or item.get("id") or "").strip()
+    return humanize_label(native_id) if native_id else "-"
+
+
+def list_row(item: dict[str, Any], lang: str) -> dict[str, str]:
+    """Flatten a timer payload into display cells."""
+
+    health = item.get("health") or {}
+    return {
+        "id": str(item.get("id") or "-"),
+        "description": description_cell(item),
+        "interval": interval_cell(item),
+        "state": state_cell(item, lang),
+        "enabled": bool_cell(item.get("enabled"), lang),
+        "loaded": bool_cell(item.get("loaded"), lang),
+        "scope": str(item.get("scope") or "-"),
+        "schedule": schedule_cell(item, lang),
+        "pid": str(item.get("pid") or "-"),
+        "exit": "-" if health.get("last_exit_code") is None else str(health.get("last_exit_code")),
+        "action": action_cell(item),
+        "source": compact_path(item.get("source")),
+    }
+
+
+def list_header(spec: tuple[str, str, str, int, int, str], lang: str) -> str:
+    """Return the localized header for a list column."""
+
+    _key, english, chinese, _min_width, _max_width, _kind = spec
+    return english if lang == "en" else chinese
+
+
+def list_column_min_width(key: str, header: str, min_width: int, rows: list[dict[str, str]]) -> int:
+    """Return the minimum safe width for a selected list column."""
+
+    observed = max([display_width(header), *(display_width(row[key]) for row in rows)], default=display_width(header))
+    if key in NON_TRUNCATING_LIST_COLUMNS:
+        return max(min_width, observed)
+    return min_width
+
+
+def list_column_desired_width(key: str, header: str, min_width: int, max_width: int, rows: list[dict[str, str]]) -> int:
+    """Return the preferred width for a selected list column."""
+
+    observed = max([display_width(header), *(display_width(row[key]) for row in rows)], default=display_width(header))
+    if key in NON_TRUNCATING_LIST_COLUMNS:
+        return max(min_width, observed)
+    return max(min_width, min(max_width, observed))
+
+
+def list_width(
+    columns: list[tuple[str, str, str, int, int, str]],
+    rows: list[dict[str, str]],
+    *,
+    desired: bool,
+    lang: str,
+) -> int:
+    """Return terminal width needed for the selected columns."""
+
+    if not columns:
+        return 0
+    if desired:
+        return (
+            sum(
+                list_column_desired_width(key, list_header(spec, lang), min_width, max_width, rows)
+                for spec in columns
+                for key, _english, _chinese, min_width, max_width, _kind in [spec]
+            )
+            + len(columns)
+            - 1
+        )
+    return (
+        sum(
+            list_column_min_width(key, list_header(spec, lang), min_width, rows)
+            for spec in columns
+            for key, _english, _chinese, min_width, _max_width, _kind in [spec]
+        )
+        + len(columns)
+        - 1
+    )
+
+
+def select_list_columns(rows: list[dict[str, str]], terminal_width: int, lang: str) -> list[tuple[str, str, str, int, int, str]]:
+    """Select columns that fit the current terminal without hiding core state."""
+
+    selected_keys = {key for key, _english, _chinese, _min_width, _max_width, kind in LIST_COLUMNS if kind == "core"}
+    for key in OPTIONAL_LIST_COLUMN_PRIORITY:
+        candidate_keys = selected_keys | {key}
+        candidate = [spec for spec in LIST_COLUMNS if spec[0] in candidate_keys]
+        if list_width(candidate, rows, desired=True, lang=lang) <= terminal_width:
+            selected_keys.add(key)
+    return [spec for spec in LIST_COLUMNS if spec[0] in selected_keys]
+
+
+def allocate_column_widths(rows: list[dict[str, str]], lang: str) -> list[tuple[str, str, int]]:
+    """Choose terminal-friendly list column widths."""
+
+    terminal_width = shutil.get_terminal_size((120, 20)).columns
+    columns = select_list_columns(rows, terminal_width, lang)
+    widths: dict[str, int] = {}
+    for spec in columns:
+        key, _english, _chinese, min_width, max_width, _kind = spec
+        header = list_header(spec, lang)
+        widths[key] = list_column_desired_width(key, header, min_width, max_width, rows)
+
+    spacing = len(columns) - 1
+    total_width = sum(widths[key] for key, *_ in columns) + spacing
+    min_widths = {
+        key: list_column_min_width(key, list_header(spec, lang), min_width, rows)
+        for spec in columns
+        for key, _english, _chinese, min_width, _max_width, _kind in [spec]
+    }
+    shrinkable = [
+        (key, min_widths[key])
+        for key in LIST_SHRINK_PRIORITY
+        if key in min_widths and key not in NON_TRUNCATING_LIST_COLUMNS
+    ]
+    while total_width > terminal_width and any(widths[key] > min_width for key, min_width in shrinkable):
+        for key, min_width in shrinkable:
+            if total_width <= terminal_width:
+                break
+            if widths[key] > min_width:
+                widths[key] -= 1
+                total_width -= 1
+
+    return [(key, list_header(spec, lang), widths[key]) for spec in columns for key in [spec[0]]]
+
+
+def print_timer_list(payload: list[dict[str, Any]], lang: str = "zh") -> None:
+    """Print a readable timer inventory table."""
+
+    rows = [list_row(item, lang) for item in payload]
+    columns = allocate_column_widths(rows, lang)
+    header = " ".join(display_ljust(shorten_middle(header, width), width) for _key, header, width in columns)
+    print(header.rstrip())
+    if not rows:
+        print("(no timers)" if lang == "en" else "(无定时任务)")
+        return
+    for row in rows:
+        print(" ".join(display_ljust(shorten_middle(row[key], width), width) for key, _header, width in columns).rstrip())
+
+
+def print_result(payload: Any, as_json: bool, lang: str = "zh") -> None:
     """Print JSON or compact human-readable output."""
 
     if as_json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return
     if isinstance(payload, list):
-        for item in payload:
-            schedule = item.get("trigger", {}).get("schedule") or item.get("trigger", {}).get("type")
-            state = "running" if item.get("running") else "stopped"
-            enabled = "enabled" if item.get("enabled") else "disabled"
-            print(f"{item['id']}\t{state}\t{enabled}\t{item['backend']}\t{schedule}")
+        print_timer_list(payload, lang=lang)
         return
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+
+
+def has_failed_returncode(payload: Any) -> bool:
+    """Return whether a backend result contains a failed command status."""
+
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key.endswith("returncode") and isinstance(value, int) and value != 0:
+                return True
+            if has_failed_returncode(value):
+                return True
+    if isinstance(payload, list):
+        return any(has_failed_returncode(item) for item in payload)
+    return False
 
 
 def launchd_paths() -> list[tuple[Path, str]]:
@@ -726,7 +1037,6 @@ def capability_name(operation: str) -> str:
     """Return the capability field for an operation."""
 
     return {
-        "run": "can_start",
         "launch": "can_start",
         "start": "can_start",
         "stop": "can_stop",
@@ -797,7 +1107,7 @@ def launchd_control(job: TimerJob, operation: str, allow_system: bool, allow_non
                     "stderr": bootstrap.stderr.strip(),
                 }
         args = ["launchctl", "kickstart", "-k", f"{domain}/{label}"]
-    elif operation in {"launch", "run"}:
+    elif operation == "launch":
         args = ["launchctl", "kickstart", "-k", f"{domain}/{label}"]
     elif operation == "stop":
         args = ["launchctl", "kill", "TERM", f"{domain}/{label}"]
@@ -844,7 +1154,6 @@ def windows_control(job: TimerJob, operation: str, allow_system: bool, allow_non
         "disable": "Disable-ScheduledTask",
         "start": "Start-ScheduledTask",
         "launch": "Start-ScheduledTask",
-        "run": "Start-ScheduledTask",
         "stop": "Stop-ScheduledTask",
     }
     if operation == "restart":
@@ -1131,11 +1440,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_parser = subparsers.add_parser("list", aliases=["ls"], parents=[common_parser])
     list_parser.add_argument("--all", action="store_true", help="include non-AI workflow jobs")
+    list_parser.add_argument("--lang", choices=sorted(SUPPORTED_LIST_LANGUAGES), default="zh", help="list header language")
 
     get_parser = subparsers.add_parser("get", aliases=["show", "inspect"], parents=[common_parser])
     get_parser.add_argument("id")
 
-    status_parser = subparsers.add_parser("status", aliases=["状态"], parents=[common_parser])
+    status_parser = subparsers.add_parser("status", parents=[common_parser])
     status_parser.add_argument("id")
 
     create_parser = subparsers.add_parser("create", aliases=["add"], parents=[common_parser])
@@ -1159,10 +1469,10 @@ def build_parser() -> argparse.ArgumentParser:
     for command, aliases in {
         "enable": [],
         "disable": [],
-        "start": ["开启"],
-        "launch": ["run", "lunch", "执行"],
+        "start": [],
+        "launch": [],
         "restart": [],
-        "stop": ["停止"],
+        "stop": [],
     }.items():
         action_parser = subparsers.add_parser(command, aliases=aliases, parents=[common_parser])
         action_parser.add_argument("id")
@@ -1183,25 +1493,29 @@ def main(argv: list[str] | None = None) -> int:
     if argv is None and "--json" in sys.argv[1:]:
         as_json = True
     try:
+        payload: Any
         if command in {"list", "ls"}:
-            print_result([timer_to_dict(job) for job in list_jobs(include_all=args.all)], as_json)
+            payload = [timer_to_dict(job) for job in list_jobs(include_all=args.all)]
+            print_result(payload, as_json, args.lang)
         elif command in {"get", "show", "inspect"}:
-            print_result(timer_to_dict(find_job(args.id)), True)
-        elif command in {"status", "状态"}:
-            print_result(timer_to_dict(find_job(args.id)), True)
+            payload = timer_to_dict(find_job(args.id))
+            print_result(payload, True)
+        elif command == "status":
+            payload = timer_to_dict(find_job(args.id))
+            print_result(payload, True)
         elif command in {"create", "add"}:
-            print_result(create_job(args.file, args.apply, args.allow_non_ai), True)
+            payload = create_job(args.file, args.apply, args.allow_non_ai)
+            print_result(payload, True)
         elif command in {"update", "edit"}:
-            print_result(update_job(args.id, args.file, args.apply, args.allow_system, args.allow_non_ai), True)
+            payload = update_job(args.id, args.file, args.apply, args.allow_system, args.allow_non_ai)
+            print_result(payload, True)
         elif command in {"delete", "remove", "rm"}:
-            print_result(delete_job(args.id, args.confirm, args.allow_system, args.allow_non_ai), True)
+            payload = delete_job(args.id, args.confirm, args.allow_system, args.allow_non_ai)
+            print_result(payload, True)
         else:
-            normalized = {"run": "launch", "lunch": "launch", "执行": "launch", "开启": "start", "停止": "stop"}.get(
-                command,
-                command,
-            )
-            print_result(control_job(args.id, normalized, args.apply, args.allow_system, args.allow_non_ai), True)
-        return 0
+            payload = control_job(args.id, command, args.apply, args.allow_system, args.allow_non_ai)
+            print_result(payload, True)
+        return 1 if has_failed_returncode(payload) else 0
     except TimerError as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False, indent=2), file=sys.stderr)
         return 2

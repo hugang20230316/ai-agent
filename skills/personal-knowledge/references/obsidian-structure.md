@@ -26,16 +26,20 @@ flowchart TD
     config --> restApi[local-rest-api 插件]
 
     templates --> candidateTemplate[Agent日志候选.md]
-    templates --> dailyTemplate[Agent每日索引.md]
+    templates --> dailyTemplate[Agent每日笔记.md]
 
     knowledge --> entry[00-入口.md 总入口]
     knowledge --> canvas[AgentKnowledge 工作台.canvas]
     knowledge --> base[候选处理.base]
     knowledge --> inbox[Inbox 候选日志]
-    knowledge --> daily[Daily 每日索引]
+    knowledge --> daily[Daily 已采纳日志]
     knowledge --> domains[五个业务域]
 
     inbox --> inboxGuide[候选池.md 候选导航]
+    inbox --> inboxDate[YYYY-MM-DD 日期文件夹]
+    inboxDate --> candidateLog[会话标题.md]
+    daily --> dateDir[YYYY-MM-DD 日期文件夹]
+    dateDir --> adoptedLog[会话标题.md]
     daily --> timeline[时间线.md 时间线枢纽]
     daily --> dailyReadme[README.md 目录说明]
 
@@ -55,15 +59,15 @@ flowchart TD
 ## 核心节点
 
 - `AgentKnowledge/00-入口.md`：知识库总入口，连接时间线、候选池、五个业务域、Base 和 Canvas。
-- `AgentKnowledge/Inbox/`：候选日志目录。候选可以先放在这里，但 frontmatter 的 `domain` 必须指向五个业务域之一。
+- `AgentKnowledge/Inbox/`：候选日志目录。候选按日期放入 `AgentKnowledge/Inbox/YYYY-MM-DD/<会话标题>.md`，frontmatter 的 `domain` 必须指向五个业务域之一。
 - `AgentKnowledge/Inbox/候选池.md`：候选池导航和处理规则页，不是候选日志。
 - `AgentKnowledge/候选处理.base`：候选处理视图，只展示 `AgentKnowledge/Inbox` 下的 Markdown 候选，并排除 `候选池.md`。
-- `AgentKnowledge/Daily/`：日期索引目录。Daily 只记录当天候选入口，不是长期知识正文。
+- `AgentKnowledge/Daily/`：已采纳日志目录。候选审核通过后进入 `AgentKnowledge/Daily/YYYY-MM-DD/<会话标题>.md`。
 - `AgentKnowledge/Daily/时间线.md`：时间线枢纽。
 - `AgentKnowledge/Daily/README.md`：Daily 目录说明页，核心导航仍是 `时间线.md`。
 - `AgentKnowledge/AgentKnowledge 工作台.canvas`：人工处理和总览用 Canvas 工作台。
 - `Templates/Agent日志候选.md`：候选日志模板。
-- `Templates/Agent每日索引.md`：Daily 日期页模板。
+- `Templates/Agent每日笔记.md`：Daily 已采纳日志模板。
 
 ## 业务域
 
@@ -84,27 +88,27 @@ flowchart LR
     session[Agent 会话]
     scanner[定时扫描器]
     candidate[候选摘要]
-    inbox[AgentKnowledge/Inbox]
-    daily[AgentKnowledge/Daily]
+    inbox[AgentKnowledge/Inbox 日期目录]
+    daily[AgentKnowledge/Daily 日期目录]
     domain[业务域]
     behavior[rules 或 skill]
 
     session --> candidate
     scanner --> candidate
     candidate --> inbox
-    candidate --> daily
-    inbox --> domain
-    domain --> behavior
+    inbox -->|status: 已采纳| daily
+    daily --> domain
+    domain -->|另行确认| behavior
 ```
 
-- 扫描器直接写入 `AgentKnowledge/Inbox/` 或 `AgentKnowledge/Daily/`。
+- 扫描器只直接写入 `AgentKnowledge/Inbox/YYYY-MM-DD/<会话标题>.md`。
 - 会话内写入可以使用 Obsidian MCP、Local REST API 或直接文件写入；通道不可用时只在回复里给候选摘要。
-- 候选确认后移动到对应业务域。
+- 候选确认后由生命周期步骤移动到 `AgentKnowledge/Daily/YYYY-MM-DD/<会话标题>.md`。
 - 需要影响 agent 行为的内容，必须另行确认后再修改 `rules/` 或 skill。
 
 ## Obsidian 配置摘要
 
-- Daily Notes 插件：日期格式为 `YYYY-MM-DD`，目录为 `AgentKnowledge/Daily`，模板为 `Templates/Agent每日索引.md`。
+- Daily Notes 插件：日期格式为 `YYYY-MM-DD`，目录为 `AgentKnowledge/Daily`。自动扫描器不通过 Daily Notes 插件生成候选索引。
 - Templates 插件：模板目录为 `Templates`。
 - Local REST API 插件已启用。不要读取、复制或记录插件 `data.json` 内容。
 
@@ -114,7 +118,7 @@ flowchart LR
 
 - 根目录 `欢迎.md`：Obsidian 默认欢迎页。
 - `AgentKnowledge/Inbox` 下的具体候选日志。
-- `AgentKnowledge/Daily` 下的具体日期页。
+- `AgentKnowledge/Daily` 下的具体日期文件夹和已采纳日志。
 - 业务域内单条知识笔记。
 - Obsidian 主题、插件实现文件和缓存。
 
@@ -129,4 +133,4 @@ flowchart LR
 - 候选模板、Daily 模板或 Obsidian 插件配置中的写入路径。
 - `SKILL.md` 中支持的写入通道或候选流转规则。
 
-新增普通候选、Daily 日期页或业务域内单条知识笔记时，不需要更新本文。
+新增普通候选、Daily 已采纳日志或业务域内单条知识笔记时，不需要更新本文。

@@ -3,7 +3,7 @@
 ## 触发与加载
 
 - 用户用 `$SkillName`、明文 skill 名称、插件名，或任务语义明显命中某个 skill 描述时，必须按当前会话可用 skill 列表匹配对应 skill。
-- 用户要求 AI 操作、排查、验证或管理定时任务、计划任务、LaunchAgent、LaunchDaemon、launchctl、cron、crontab、at、Windows Task Scheduler、PowerShell ScheduledTasks、schtasks 或同类后台定时作业时，默认触发 `timer` skill；除非用户明确要求绕过该 skill，或 `timer` skill 明确不支持目标后端，否则不得直接把底层系统命令作为首选入口。
+- 用户要求操作、排查、验证或管理定时任务时，只有在明确点名 `timer` skill 或 `timer` 命令、目标任务有个人 AI 工作流证据，或用户明确要求全量只读盘点本机调度任务时，才默认触发个人维护的 `timer` skill；单纯出现 LaunchAgent、launchctl、cron、crontab、Task Scheduler、schtasks 等通用调度系统，或 Google、Chrome、系统唤醒、厂商更新等非 AI 工作流任务，不默认触发。
 - 命中 skill 后，先读取对应 `SKILL.md`，只读取完成任务所需的说明；如果 `SKILL.md` 引用脚本、模板或相对路径，按 skill 文件所在目录解析。
 - 如果多个 skill 同时命中，选择覆盖任务所需的最小集合，并说明使用顺序。
 - 如果用户点名的 skill 不存在、路径不可读或无法应用，必须说明原因，再使用最接近的内置能力或其他已安装 skill 兜底。
