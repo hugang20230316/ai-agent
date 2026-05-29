@@ -589,16 +589,20 @@ def keychain_available() -> bool:
     return sys.platform == "darwin" and Path("/usr/bin/security").exists()
 
 
-def keychain_set_password(base_url: str, username: str, password: str, service: str = KEYCHAIN_SERVICE) -> None:
+def keychain_set_password(base_url: str, username: str, password: str, service: str = KEYCHAIN_SERVICE) -> bool:
     if not keychain_available():
-        return
+        return False
     account = keychain_account(base_url, username)
-    subprocess.run(
+    result = subprocess.run(
         ["security", "add-generic-password", "-U", "-a", account, "-s", service, "-w", password],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        print(f"Warning: keychain write failed (rc={result.returncode}), falling back to local credential store", file=sys.stderr)
+        return False
+    return True
 
 
 def keychain_get_password_from_service(base_url: str, username: str, service: str) -> str | None:
@@ -642,14 +646,14 @@ def read_cached_credential(base_url: str, session_path: Path) -> dict[str, str] 
 
 
 def save_cached_credential(base_url: str, username: str, password: str, session_path: Path) -> None:
-    keychain_set_password(base_url, username, password)
+    keychain_ok = keychain_set_password(base_url, username, password)
     metadata = {
         "baseUrl": base_url.rstrip("/"),
         "username": username,
-        "credentialStore": "keychain" if keychain_available() else "local-state",
+        "credentialStore": "keychain" if keychain_ok else "local-state",
         "updatedAt": utc_iso(),
     }
-    if keychain_available():
+    if keychain_ok:
         metadata["keychainService"] = KEYCHAIN_SERVICE
         metadata["legacyKeychainService"] = LEGACY_KEYCHAIN_SERVICE
         metadata["keychainAccount"] = keychain_account(base_url, username)
@@ -876,7 +880,7 @@ def argocd_publish(args: argparse.Namespace, target_tag: str, *, deadline: datet
     session = get_argocd_access_token(args)
     token = session["token"]
     if args.apps:
-        resolved_apps = sorted({app for app in args.apps if app})
+        resolved_apps = sorted({a.strip() for item in args.apps for a in item.split(",") if a.strip()})
     elif args.scope == DEFAULT_SCOPE:
         resolved_apps = list(DEFAULT_DEFAULT_APPS)
     else:
@@ -1036,7 +1040,7 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
     lock_token = os.urandom(8).hex()
     total_timeout_seconds = args.total_timeout_seconds or config_int(
         "totalTimeoutSeconds",
-        max(args.gitlab_wait_timeout_seconds, args.sync_timeout_seconds),
+        args.gitlab_wait_timeout_seconds + args.sync_timeout_seconds,
     )
     total_deadline = started_at + timedelta(seconds=total_timeout_seconds)
     report_progress(args, f"Publish start scope={args.scope} tag={plan['effectiveTag']} totalTimeout={total_timeout_seconds}s")

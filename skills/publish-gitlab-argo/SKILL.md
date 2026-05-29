@@ -21,6 +21,7 @@ Machine-specific API hosts, repo paths, app names, credentials, sessions, and re
 
 ## Shared Workflow
 
+0. Run `python3 scripts/publish_gitlab_argo.py doctor` before publishing. If credential or connectivity issues are detected (e.g., ArgoCD token expired, GitLab unreachable), resolve them before proceeding. Do not proceed to publish if doctor reports critical failures.
 1. Inspect the commits/files being published and identify the affected components before choosing apps.
 2. Resolve the requested publish scope: selected components from the change impact, explicit apps, all apps, preview only, or known-tag app update.
 3. Use default apps only as a fallback when the changed components cannot be mapped more specifically.

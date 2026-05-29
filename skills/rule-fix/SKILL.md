@@ -27,6 +27,8 @@ Do not treat rule changes as ordinary Markdown edits. The goal is to change beha
    - Prefer fixing an existing rule over adding another rule.
 
 4. **Review the candidate before approval**
+   - Candidate rules must be written first as one executable hard constraint; put reasons, background, examples, and explanation in the diagnosis, not the rule body.
+   - Before proposing a rule draft, list the target behavior's trigger terms, synonym expressions, and reverse boundary, then confirm the rule text covers them.
    - Before asking the user to approve a rule draft or rule-fix write plan, run `multi-agent-workflow` with real isolated subagents to review the proposed rule for brevity, trigger reliability, clarity, duplication, conflicts, and hardcoded incident residue.
    - Fix and re-review blocking findings; if real isolated subagents are unavailable, do not simulate them and report the blocker instead of asking approval of an unreviewed draft.
 
