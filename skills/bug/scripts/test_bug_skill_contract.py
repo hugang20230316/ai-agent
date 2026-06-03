@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -18,7 +19,7 @@ FETCH_SCRIPT = SKILL_DIR / "scripts" / "fetch_zentao_bug.py"
 DIAGNOSE_SCRIPT = SKILL_DIR / "scripts" / "diagnose_bug_config.py"
 sys.path.insert(0, str(SKILL_DIR / "scripts"))
 
-from local_config import load_skill_config, resolve_secret  # noqa: E402
+from local_config import find_project_config, group_project_fields, load_skill_config, resolve_config_secret  # noqa: E402
 
 
 REQUIRED_PHRASES = {
@@ -64,6 +65,9 @@ REQUIRED_PHRASES = {
     "continue_fix_after_verification_gap": "verification exposes another fixable failure in the same authorized bug workflow",
     "rerun_verification_after_fix": "continue fixing and rerun verification",
     "ask_only_new_authorization": "Stop to ask only when the next action needs new authorization",
+    "flat_project_config": "Project entries in `bug.local.json` stay flat",
+    "read_only_project_groups": "read-only project field groups",
+    "no_resources_workflows": "Do not add `resources` or `workflows`",
 }
 
 
@@ -135,9 +139,9 @@ def check_local_config() -> None:
         fail(f"bug.local.json should load from exactly one path, got {len(config_paths)}")
     if not config.get("zentaoBaseUrl"):
         fail("zentaoBaseUrl is missing")
-    if not (config.get("username") or resolve_secret(config.get("usernameSource"))):
+    if not resolve_config_secret(config, "username", "usernameSource"):
         fail("username is missing")
-    if not (config.get("password") or resolve_secret(config.get("passwordSource"))):
+    if not resolve_config_secret(config, "password", "passwordSource"):
         fail("password is missing")
 
     projects = config.get("projects")
@@ -145,6 +149,74 @@ def check_local_config() -> None:
         fail("project service config is missing")
 
     print(f"PASS: local config loaded paths={len(config_paths)} projects={len(projects)}")
+
+
+def check_credential_config_contract() -> None:
+    old_username_env = os.environ.get("BUG_SKILL_TEST_USERNAME")
+    old_password_env = os.environ.get("BUG_SKILL_TEST_PASSWORD")
+    try:
+        os.environ["BUG_SKILL_TEST_USERNAME"] = "new-user"
+        os.environ["BUG_SKILL_TEST_PASSWORD"] = "new-password"
+        new_style_config = {
+            "username": "env:BUG_SKILL_TEST_USERNAME",
+            "password": "env:BUG_SKILL_TEST_PASSWORD",
+        }
+        legacy_config = {
+            "usernameSource": "legacy-user",
+            "passwordSource": "legacy-password",
+        }
+
+        if resolve_config_secret(new_style_config, "username", "usernameSource") != "new-user":
+            fail("new-style username config was not resolved")
+        if resolve_config_secret(new_style_config, "password", "passwordSource") != "new-password":
+            fail("new-style password config was not resolved")
+        if resolve_config_secret(legacy_config, "username", "usernameSource") != "legacy-user":
+            fail("legacy usernameSource config was not resolved")
+        if resolve_config_secret(legacy_config, "password", "passwordSource") != "legacy-password":
+            fail("legacy passwordSource config was not resolved")
+    finally:
+        if old_username_env is None:
+            os.environ.pop("BUG_SKILL_TEST_USERNAME", None)
+        else:
+            os.environ["BUG_SKILL_TEST_USERNAME"] = old_username_env
+        if old_password_env is None:
+            os.environ.pop("BUG_SKILL_TEST_PASSWORD", None)
+        else:
+            os.environ["BUG_SKILL_TEST_PASSWORD"] = old_password_env
+
+    print("PASS: credential config contract")
+
+
+def check_project_group_contract() -> None:
+    fake_config = {
+        "projects": {
+            "demo": {
+                "aliases": ["demo-web", "演示项目"],
+                "repoPath": "/example/repo",
+                "webBaseUrl": "https://web.example.test",
+                "apiBaseUrl": "https://api.example.test",
+                "serviceBaseUrl": "https://service.example.test",
+                "swaggerUrl": "https://api.example.test/swagger",
+                "apiPolicy": "local note",
+                "testEnvironmentWriteAccess": True,
+                "unknownField": "ignored",
+            }
+        }
+    }
+
+    matched = find_project_config(fake_config, "demo-web")
+    if not matched or matched[0] != "demo":
+        fail("project alias was not matched")
+
+    grouped = group_project_fields(matched[1])
+    expected_groups = {"repo", "web", "api_base", "swagger", "policy_note", "test_write", "relation"}
+    missing_groups = expected_groups - set(grouped)
+    if missing_groups:
+        fail(f"project field groups missing: {sorted(missing_groups)}")
+    if "unknownField" in json.dumps(grouped, ensure_ascii=False):
+        fail("unknown project field leaked into grouped output")
+
+    print("PASS: project field group contract")
 
 
 def run_fetch(bug_ref: str) -> dict:
@@ -196,6 +268,8 @@ def check_live_fetch(live_bug: str, live_url: str) -> None:
 def main() -> None:
     args = parse_args()
     check_skill_text()
+    check_credential_config_contract()
+    check_project_group_contract()
     check_local_config()
     check_live_fetch(args.live_bug, args.live_url)
 

@@ -22,7 +22,7 @@ from typing import Any
 from urllib.parse import urlencode
 from urllib.request import HTTPSHandler, HTTPCookieProcessor, Request, build_opener
 
-from local_config import load_skill_config, resolve_secret
+from local_config import load_skill_config, resolve_config_secret
 
 
 DEFAULT_BASE_URL = "https://zentao.example.com/zentao"
@@ -202,8 +202,8 @@ def main() -> None:
     args = parse_args()
     config = load_skill_config("bug")
     base_url = normalize_base_url(args.base_url or str(config.get("zentaoBaseUrl") or DEFAULT_BASE_URL))
-    username = args.username or resolve_secret(config.get("usernameSource")) or str(config.get("username") or "")
-    password = args.password or resolve_secret(config.get("passwordSource")) or str(config.get("password") or "")
+    username = args.username or resolve_config_secret(config, "username", "usernameSource")
+    password = args.password or resolve_config_secret(config, "password", "passwordSource")
     bug_id = extract_bug_id(args.bug_ref)
 
     opener, ssl_context = build_opener_with_cookies()

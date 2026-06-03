@@ -25,3 +25,4 @@
 | `scenarios/10-reverse-small-scope.md` | 验证小需求不会被页面元素核对表拖成完整 PRD |
 | `scenarios/11-code-comparison-required.md` | 回放有关联项目时只整理原型、不结合现有代码查漏补缺的问题 |
 | `scenarios/12-incremental-retrospective.md` | 回放补需求时只列新增内容、不解释为什么漏和补了哪些关联的问题 |
+| `scenarios/13-default-coverage-gate.md` | 验证默认内部覆盖证据门禁、完整性声明降级和小需求输出克制 |
