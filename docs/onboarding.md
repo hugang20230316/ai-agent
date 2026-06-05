@@ -23,10 +23,20 @@ This does not change local agent symlinks, private config, tokens, sessions, or 
 
 Repository owners can follow `docs/github-transfer-checklist.md` for the transfer and protection setup.
 
-2. Verify the repository files.
+2. Run the auto setup.
 
 ```bash
-python3 scripts/verify_agent_rules.py
+python3 scripts/setup_links.py
+```
+
+The script detects local Codex, Claude, Hermes, and OpenClaw installs. For each detected tool, it links the shared `AGENTS.md` and each `rules/*.md` file. If an old entry or rule file already exists, the script backs it up under that tool's `.ai-agent-backups/` directory before creating the link.
+
+The script does not install agent CLIs, write private config, enable every skill, or modify credentials. If `~/.claude/CLAUDE.md` or `$HERMES_HOME/SOUL.md` already exists and does not reference `AGENTS.md`, the script backs up the file and appends the shared entry reference.
+
+To preview the auto setup without changing files:
+
+```bash
+python3 scripts/setup_links.py --print-only
 ```
 
 3. Inspect local setup.
@@ -37,9 +47,7 @@ python3 scripts/doctor.py
 
 `doctor.py` is read-only. It reports missing links and selected skill status, but it does not install tools, write private config, or create links.
 
-4. Link the shared entry and rules into your agent tool home.
-
-Recommended shape:
+The target shape is:
 
 ```text
 <tool-home>/AGENTS.md -> <repo>/AGENTS.md
@@ -48,14 +56,12 @@ Recommended shape:
 
 Use per-file symlinks for `rules/*.md`. Do not symlink the whole `rules/` directory because some tools keep private local files in their rules directory.
 
-To print commands without changing files:
+Advanced users can still target one tool explicitly:
 
 ```bash
 python3 scripts/setup_links.py --tool codex --rules --print-only
-python3 scripts/setup_links.py --tool claude --rules --print-only
+python3 scripts/setup_links.py --tool codex --rules --apply
 ```
-
-Add `--apply` only after reviewing the printed plan.
 
 5. Expose only the maintained skills you need.
 

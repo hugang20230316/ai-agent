@@ -9,17 +9,22 @@ The planned team home is `team-agent-workflow/ai-agent`. Until the repository is
 ## Quick Start
 
 1. Clone the repository.
-2. Read `docs/onboarding.md`.
+2. Run the auto setup.
 3. Run `python3 scripts/doctor.py` to inspect local setup.
-4. Link `AGENTS.md` and `rules/*.md` into your own agent tool home.
-5. Opt in to only the maintained skills you need.
-6. Put private configuration in your local tool config directory, not in this repository.
-7. Run `python3 scripts/verify_agent_rules.py` before opening a pull request.
+4. Opt in to only the maintained skills you need.
+5. Put private configuration in your local tool config directory, not in this repository.
+6. Run `python3 scripts/verify_agent_rules.py` before opening a pull request.
 
-Print the Codex rule link plan without changing files:
+The auto setup detects local Codex, Claude, Hermes, and OpenClaw installs, then links the shared `AGENTS.md` and `rules/*.md` into each detected tool:
 
 ```bash
-python3 scripts/setup_links.py --tool codex --rules --print-only
+python3 scripts/setup_links.py
+```
+
+To preview the same auto plan without changing files:
+
+```bash
+python3 scripts/setup_links.py --print-only
 ```
 
 Link selected skills only when you need them:
@@ -88,7 +93,7 @@ Shared custom skills:
 Shared scripts:
 
 - `scripts/doctor.py`: read-only local setup inspection
-- `scripts/setup_links.py`: print or create links for shared rules and selected skills
+- `scripts/setup_links.py`: auto-detect local tools, link shared rules, and optionally link selected skills
 - `scripts/verify_agent_rules.py`: regression checks for shared rules and managed skills
 - `scripts/check_dangerous_deletions.py`: CI guard for protected deletions
 

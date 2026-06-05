@@ -96,6 +96,18 @@ REQUIRED_PHRASES = {
         "agents",
         "涉及长任务、多阶段排查、未完成收口、上下文压力或 `/compact` 时",
     ),
+    "agents_rules_resolve_from_entry": (
+        "agents",
+        "以当前生效 `AGENTS.md` 的真实文件所在目录为根",
+    ),
+    "agents_rules_symlink_target": (
+        "agents",
+        "若入口是软链接，先解析软链接真实目标",
+    ),
+    "project_repo_is_public_source": (
+        "project",
+        "`AGENTS.md`、`rules/` 和 `skills/` 必须以仓库自身位置为源",
+    ),
     "multi_round_verification": (
         "testing",
         "规则覆盖检查、历史失败场景回放和反向/边界场景检查做多轮验证",
@@ -3185,7 +3197,6 @@ def check_personal_knowledge_schema_alignment(texts: dict[str, str]) -> None:
         "domain: 01-Agent工作台",
         "source: codex",
         "related_issues: []",
-        'pattern_candidate: ""',
     ]
     for phrase in schema_phrases:
         if phrase not in texts["personal_rules"]:
@@ -3194,6 +3205,7 @@ def check_personal_knowledge_schema_alignment(texts: dict[str, str]) -> None:
             fail(f"personal knowledge skill missing schema phrase: {phrase}")
 
     for phrase in [
+        "pattern_candidate",
         "secret_refs",
         "agent_load",
         "contexts",

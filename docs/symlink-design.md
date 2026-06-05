@@ -130,20 +130,34 @@ OpenClaw 目标配置形态：
 
 ## 安装流程
 
-先运行只读检查：
+新机器 clone 仓库后，直接运行自动接入：
+
+```bash
+python3 scripts/setup_links.py
+```
+
+脚本会自动检测本机已有的 Codex、Claude、Hermes 和 OpenClaw，为检测到的工具链接共享 `AGENTS.md` 和逐文件 `rules/*.md`。已有入口或规则文件会先备份到对应工具目录下的 `.ai-agent-backups/`，再创建链接。
+
+需要先看计划时：
+
+```bash
+python3 scripts/setup_links.py --print-only
+```
+
+接入后运行只读检查：
 
 ```bash
 python3 scripts/doctor.py
 ```
 
-需要生成链接命令时，先用 `--print-only` 查看计划：
+脚本不会安装 agent CLI、不会写私有配置、不会默认启用所有 skill。`~/.claude/CLAUDE.md` 和 `$HERMES_HOME/SOUL.md` 如果已经存在且没有引用 `AGENTS.md`，脚本会先备份，再追加公共入口引用。
+
+维护者仍可指定单个工具或选定 skill：
 
 ```bash
 python3 scripts/setup_links.py --tool codex --rules --print-only
 python3 scripts/setup_links.py --tool codex --skills multi-agent-workflow,personal-knowledge --print-only
 ```
-
-确认后才加 `--apply`。脚本不会安装 agent CLI、不会写私有配置、不会默认启用所有 skill。
 
 1. 先把当前 Codex 中确认最新的公共规则同步到 `ai-agent/rules/*.md`。
 2. 把当前 Codex 中确认最新的托管 skill 同步到 `ai-agent/skills/<skill-name>/`，排除 `.DS_Store`、`__pycache__`、日志、缓存和本机配置。
