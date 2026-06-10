@@ -73,6 +73,8 @@ DEFAULT_PROJECT = str(PUBLISH_CONFIG.get("argocdProject") or "project-dev")
 DEFAULT_DEFAULT_APPS = [str(item) for item in PUBLISH_CONFIG.get("defaultApps", []) if item]
 DEFAULT_ALL_APPS_NAME_FILTER = str(PUBLISH_CONFIG.get("allAppsNameFilter") or "")
 DEFAULT_RELEASE_TAG_PATTERN = re.compile(str(PUBLISH_CONFIG.get("releaseTagPattern") or r"^v0\.0\.\d+$"))
+# release 分支发布只跟随带 -release 后缀的 tag 族。
+RELEASE_BRANCH_TAG_PATTERN = re.compile(str(PUBLISH_CONFIG.get("releaseBranchTagPattern") or r"^v0\.0\.\d+-release$"))
 
 
 def utc_now() -> datetime:
@@ -102,6 +104,15 @@ def config_int(name: str, default: int) -> int:
     if value in (None, ""):
         return default
     return int(value)
+
+
+def config_bool(name: str, default: bool) -> bool:
+    value = PUBLISH_CONFIG.get(name)
+    if value in (None, ""):
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def parse_datetime(value: str | None) -> datetime | None:
@@ -428,7 +439,18 @@ def gitlab_pipeline_status(connection: GitLabConnection, tag: str) -> dict[str, 
         return None
     pipeline = pipelines[0]
     status = str(pipeline.get("status", ""))
-    normalized = {
+    return {
+        "id": str(pipeline.get("id", "")),
+        "status": status,
+        "webUrl": str(pipeline.get("web_url", "")),
+        "updatedAt": str(pipeline.get("updated_at", "")),
+        "createdAt": str(pipeline.get("created_at", "")),
+        "normalized": normalize_gitlab_status(status),
+    }
+
+
+def normalize_gitlab_status(status: str) -> str:
+    return {
         "success": "passed",
         "failed": "failed",
         "canceled": "canceled",
@@ -438,29 +460,143 @@ def gitlab_pipeline_status(connection: GitLabConnection, tag: str) -> dict[str, 
         "created": "running",
         "preparing": "running",
         "waiting_for_resource": "running",
+        "manual": "running",
     }.get(status, status)
-    return {
-        "id": str(pipeline.get("id", "")),
-        "status": status,
-        "webUrl": str(pipeline.get("web_url", "")),
-        "updatedAt": str(pipeline.get("updated_at", "")),
-        "createdAt": str(pipeline.get("created_at", "")),
-        "normalized": normalized,
-    }
+
+
+def gitlab_pipeline_jobs(connection: GitLabConnection, pipeline_id: str) -> list[dict[str, Any]]:
+    page = 1
+    jobs: list[dict[str, Any]] = []
+    while True:
+        body, headers = gitlab_request(
+            connection,
+            "GET",
+            f"/api/v4/projects/{connection.project_id}/pipelines/{pipeline_id}/jobs",
+            query={"per_page": 100, "page": page},
+            capture_headers=True,
+        )
+        jobs.extend(list(body or []))
+        next_page = headers.get("X-Next-Page", "") or headers.get("x-next-page", "")
+        if not next_page:
+            break
+        page = int(next_page)
+    return jobs
+
+
+def selected_argocd_apps(args: argparse.Namespace) -> list[str]:
+    if getattr(args, "apps", None):
+        return sorted({a.strip() for item in args.apps for a in item.split(",") if a.strip()})
+    if args.scope == DEFAULT_SCOPE:
+        return list(DEFAULT_DEFAULT_APPS)
+    return []
+
+
+def gitlab_gate_jobs_for_apps(app_names: list[str]) -> tuple[list[str], str]:
+    app_job_map = PUBLISH_CONFIG.get("gitlabGateJobsByApp") or PUBLISH_CONFIG.get("gitLabGateJobsByApp")
+    if not isinstance(app_job_map, dict):
+        return [], "未配置 app 到 GitLab job 的映射"
+    missing_apps = [app_name for app_name in app_names if not str(app_job_map.get(app_name, "")).strip()]
+    if missing_apps:
+        return [], "缺少应用的 GitLab job 映射: " + ", ".join(missing_apps)
+    job_names = sorted({str(app_job_map[app_name]).strip() for app_name in app_names if str(app_job_map[app_name]).strip()})
+    if not job_names:
+        return [], "GitLab job 映射为空"
+    return job_names, ""
+
+
+def gate_job_states(jobs: list[dict[str, Any]], gate_job_names: list[str]) -> tuple[list[dict[str, Any]], str]:
+    job_by_name: dict[str, dict[str, Any]] = {}
+    for job in jobs:
+        name = str(job.get("name", ""))
+        if name in gate_job_names and name not in job_by_name:
+            job_by_name[name] = job
+    missing_jobs = [name for name in gate_job_names if name not in job_by_name]
+    if missing_jobs:
+        return [], "pipeline 中未找到 GitLab job: " + ", ".join(missing_jobs)
+    states: list[dict[str, Any]] = []
+    for name in gate_job_names:
+        job = job_by_name[name]
+        states.append(
+            {
+                "name": name,
+                "status": str(job.get("status", "")),
+                "normalized": normalize_gitlab_status(str(job.get("status", ""))),
+                "stage": str(job.get("stage", "")),
+                "duration": job.get("duration"),
+                "startedAt": str(job.get("started_at", "")),
+                "finishedAt": str(job.get("finished_at", "")),
+            }
+        )
+    return states, ""
+
+
+def wait_gitlab_latest_release_jobs_passed(
+    connection: GitLabConnection,
+    gate_job_names: list[str],
+    timeout_seconds: int,
+    poll_interval_seconds: int,
+    release_pattern: re.Pattern[str],
+    *,
+    args: argparse.Namespace | None = None,
+) -> dict[str, Any]:
+    started_at = utc_now()
+    deadline = started_at + timedelta(seconds=timeout_seconds)
+    observations: list[dict[str, Any]] = []
+    last_progress_at = started_at - timedelta(seconds=60)
+    while utc_now() < deadline:
+        latest = gitlab_latest_release_tag(connection, release_pattern)
+        pipeline = gitlab_pipeline_status(connection, latest["latestTag"])
+        if not pipeline:
+            raise RuntimeError(f"最新 tag {latest['latestTag']} 没有找到流水线")
+        jobs = gitlab_pipeline_jobs(connection, pipeline["id"])
+        states, unavailable_reason = gate_job_states(jobs, gate_job_names)
+        if unavailable_reason:
+            raise RuntimeError(unavailable_reason)
+        observations.append({"tag": latest["latestTag"], "pipeline": pipeline["id"], "jobs": states})
+        if args and not getattr(args, "quiet", False) and elapsed_seconds_since(last_progress_at) >= 30:
+            running = ", ".join(f"{item['name']}={item['normalized']}" for item in states)
+            report_progress(
+                args,
+                f"GitLab job gate tag={latest['latestTag']} pipeline={pipeline['id']} {running} "
+                f"elapsed={elapsed_seconds_since(started_at)}s remaining={seconds_until(deadline)}s",
+            )
+            last_progress_at = utc_now()
+        failed_jobs = [item for item in states if item["normalized"] in {"failed", "canceled", "skipped"}]
+        if failed_jobs:
+            status_text = ", ".join(f"{item['name']}={item['normalized']}" for item in failed_jobs)
+            raise RuntimeError(f"GitLab job gate 失败: {status_text}")
+        if all(item["normalized"] == "passed" for item in states):
+            return {
+                "latestTag": latest["latestTag"],
+                "latestTagCommit": latest["latestTagCommit"],
+                "pipelineStatus": "jobs-passed",
+                "pipelineId": pipeline["id"],
+                "gateMode": "jobs",
+                "gateJobs": states,
+                "gateFallbackReason": "",
+                "observations": observations,
+                "startedAt": utc_iso(started_at),
+                "finishedAt": utc_iso(),
+                "elapsedSeconds": elapsed_seconds_since(started_at),
+            }
+        time.sleep(min(poll_interval_seconds, max(seconds_until(deadline), 1)))
+    raise RuntimeError(f"GitLab job gate 在 {timeout_seconds} 秒内仍未通过")
 
 
 def wait_gitlab_latest_release_tag_passed(
     connection: GitLabConnection,
     timeout_seconds: int,
     poll_interval_seconds: int,
+    release_pattern: re.Pattern[str],
     *,
     args: argparse.Namespace | None = None,
+    fallback_reason: str = "",
 ) -> dict[str, Any]:
     started_at = utc_now()
     deadline = started_at + timedelta(seconds=timeout_seconds)
     observations: list[dict[str, str]] = []
     while utc_now() < deadline:
-        latest = gitlab_latest_release_tag(connection)
+        latest = gitlab_latest_release_tag(connection, release_pattern)
         pipeline = gitlab_pipeline_status(connection, latest["latestTag"])
         normalized = pipeline["normalized"] if pipeline else "none"
         observations.append(
@@ -485,24 +621,71 @@ def wait_gitlab_latest_release_tag_passed(
                 "latestTagCommit": latest["latestTagCommit"],
                 "pipelineStatus": normalized,
                 "pipelineId": pipeline["id"] if pipeline else "",
+                "gateMode": "pipeline",
+                "gateJobs": [],
+                "gateFallbackReason": fallback_reason,
                 "observations": observations,
                 "startedAt": utc_iso(started_at),
                 "finishedAt": utc_iso(),
                 "elapsedSeconds": elapsed_seconds_since(started_at),
             }
-        if normalized in {"failed", "canceled", "skipped", "none"}:
+        if normalized in {"failed", "canceled", "skipped"}:
             raise RuntimeError(f"最新 tag {latest['latestTag']} 的流水线状态为 {normalized}，停止发布")
         time.sleep(min(poll_interval_seconds, max(seconds_until(deadline), 1)))
     raise RuntimeError(f"最新 tag 流水线在 {timeout_seconds} 秒内仍未通过")
 
 
+def wait_gitlab_release_gate(
+    connection: GitLabConnection,
+    args: argparse.Namespace,
+    timeout_seconds: int,
+    release_pattern: re.Pattern[str],
+) -> dict[str, Any]:
+    selected_apps = selected_argocd_apps(args)
+    explicit_jobs = getattr(args, "gitlab_gate_jobs", None) or []
+    gate_job_names = sorted({job.strip() for item in explicit_jobs for job in item.split(",") if job.strip()})
+    fallback_reason = ""
+    if not gate_job_names:
+        if not selected_apps:
+            fallback_reason = "当前 scope 无法在 GitLab gate 前解析目标应用"
+        else:
+            gate_job_names, fallback_reason = gitlab_gate_jobs_for_apps(selected_apps)
+    if gate_job_names:
+        try:
+            return wait_gitlab_latest_release_jobs_passed(
+                connection,
+                gate_job_names,
+                timeout_seconds,
+                args.gitlab_poll_interval_seconds,
+                release_pattern,
+                args=args,
+            )
+        except RuntimeError as exc:
+            message = str(exc)
+            if message.startswith("GitLab job gate 失败") or message.startswith("GitLab job gate 在"):
+                raise
+            fallback_reason = message
+    return wait_gitlab_latest_release_tag_passed(
+        connection,
+        timeout_seconds,
+        args.gitlab_poll_interval_seconds,
+        release_pattern,
+        args=args,
+        fallback_reason=fallback_reason,
+    )
+
+
+def release_tag_pattern_for_branch(branch_name: str) -> re.Pattern[str]:
+    return RELEASE_BRANCH_TAG_PATTERN if branch_name == "release" else DEFAULT_RELEASE_TAG_PATTERN
+
+
 def next_tag(tag: str) -> str:
-    match = re.match(r"^(.*?)(\d+)$", tag)
+    match = re.match(r"^(.*?)(\d+)([^\d]*)$", tag)
     if not match:
         raise RuntimeError(f"无法从最新 tag {tag} 中识别末尾数字")
-    prefix, digits = match.groups()
+    prefix, digits, suffix = match.groups()
     next_number = str(int(digits) + 1).zfill(len(digits))
-    return f"{prefix}{next_number}"
+    return f"{prefix}{next_number}{suffix}"
 
 
 def resolve_publish_plan(args: argparse.Namespace) -> dict[str, Any]:
@@ -513,7 +696,8 @@ def resolve_publish_plan(args: argparse.Namespace) -> dict[str, Any]:
     tag_description = run_git(repo_path, "log", "-1", "--pretty=%B")
     current_branch = run_git(repo_path, "branch", "--show-current")
     remote_url = run_git(repo_path, "remote", "get-url", "origin")
-    latest = gitlab_latest_release_tag(connection)
+    release_pattern = release_tag_pattern_for_branch(current_branch)
+    latest = gitlab_latest_release_tag(connection, release_pattern)
     latest_tag = latest["latestTag"]
     latest_tag_commit = latest["latestTagCommit"]
     next_release_tag = next_tag(latest_tag)
@@ -530,7 +714,7 @@ def resolve_publish_plan(args: argparse.Namespace) -> dict[str, Any]:
         "scope": args.scope,
         "gitLabConfigPath": connection.config_path,
         "remoteUrl": remote_url,
-        "releaseTagPattern": DEFAULT_RELEASE_TAG_PATTERN.pattern,
+        "releaseTagPattern": release_pattern.pattern,
         "currentBranch": current_branch,
         "latestTag": latest_tag,
         "latestTagCommit": latest_tag_commit,
@@ -995,6 +1179,8 @@ def publish_result_to_text(result: dict[str, Any]) -> str:
             f"gitlab.finalTag: {result['gitlab']['finalTag']}",
             f"gitlab.pipelineStatus: {result['gitlab']['pipelineStatus']}",
             f"gitlab.pipelineId: {result['gitlab']['pipelineId']}",
+            f"gitlab.gateMode: {result['gitlab'].get('gateMode', 'pipeline')}",
+            f"gitlab.gateFallbackReason: {result['gitlab'].get('gateFallbackReason', '')}",
             f"gitlab.switchReason: {result['gitlab']['switchReason']}",
             f"argocd.updatedAndSynced: {updated}",
             f"argocd.noChange: {unchanged}",
@@ -1110,6 +1296,9 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                 "latestTagCommit": plan["sourceCommit"] if plan["shouldCreateTag"] else plan["latestTagCommit"],
                 "pipelineStatus": "not-started" if plan["shouldCreateTag"] else "passed",
                 "pipelineId": "",
+                "gateMode": "planned",
+                "gateJobs": [],
+                "gateFallbackReason": "",
                 "elapsedSeconds": 0,
             }
             final_tag = wait_result["latestTag"]
@@ -1119,9 +1308,13 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
             gitlab_wait_seconds = min(args.gitlab_wait_timeout_seconds, seconds_until(total_deadline))
             if gitlab_wait_seconds <= 0:
                 raise RuntimeError(f"发布命令总耗时超过 {total_timeout_seconds} 秒，未进入 GitLab 等待阶段")
-            wait_result = wait_gitlab_latest_release_tag_passed(connection, gitlab_wait_seconds, args.gitlab_poll_interval_seconds, args=args)
+            wait_result = wait_gitlab_release_gate(connection, args, gitlab_wait_seconds, re.compile(plan["releaseTagPattern"]))
             final_tag = wait_result["latestTag"]
             switch_reason = f"GitLab 等待期间检测到更新的最新 tag，发布目标自动切换为 {final_tag}" if final_tag != plan["effectiveTag"] else ""
+            gate_text = f"GitLab gate={wait_result.get('gateMode', 'pipeline')} tag={final_tag} pipeline={wait_result['pipelineId']} elapsed={wait_result.get('elapsedSeconds', 0)}s"
+            if wait_result.get("gateFallbackReason"):
+                gate_text += f" fallback={wait_result['gateFallbackReason']}"
+            report_progress(args, gate_text)
 
         if not args.what_if and seconds_until(total_deadline) <= 0:
             raise RuntimeError(f"发布命令总耗时超过 {total_timeout_seconds} 秒，未进入 ArgoCD 同步阶段")
@@ -1150,6 +1343,9 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                 "finalTagCommit": wait_result["latestTagCommit"],
                 "pipelineStatus": wait_result["pipelineStatus"],
                 "pipelineId": wait_result["pipelineId"],
+                "gateMode": wait_result.get("gateMode", "pipeline"),
+                "gateJobs": wait_result.get("gateJobs", []),
+                "gateFallbackReason": wait_result.get("gateFallbackReason", ""),
                 "switchReason": switch_reason,
                 "elapsedSeconds": wait_result.get("elapsedSeconds", 0),
             },
@@ -1205,11 +1401,13 @@ def build_parser() -> argparse.ArgumentParser:
     publish_parser.add_argument("-SessionPath", "--session-path")
     publish_parser.add_argument("-Username", "--username")
     publish_parser.add_argument("-Password", "--password")
-    publish_parser.add_argument("-GitLabWaitTimeoutSeconds", "--gitlab-wait-timeout-seconds", type=int, default=300)
-    publish_parser.add_argument("-GitLabPollIntervalSeconds", "--gitlab-poll-interval-seconds", type=int, default=15)
-    publish_parser.add_argument("-SyncTimeoutSeconds", "--sync-timeout-seconds", type=int, default=300)
-    publish_parser.add_argument("-TotalTimeoutSeconds", "--total-timeout-seconds", type=int, default=0)
-    publish_parser.add_argument("-Quiet", "--quiet", action="store_true")
+    publish_parser.add_argument("-GitLabGateJobs", "--gitlab-gate-jobs", nargs="*")
+    publish_parser.add_argument("-GitLabWaitTimeoutSeconds", "--gitlab-wait-timeout-seconds", type=int, default=config_int("gitLabWaitTimeoutSeconds", 300))
+    publish_parser.add_argument("-GitLabPollIntervalSeconds", "--gitlab-poll-interval-seconds", type=int, default=config_int("gitLabPollIntervalSeconds", 15))
+    publish_parser.add_argument("-SyncTimeoutSeconds", "--sync-timeout-seconds", type=int, default=config_int("syncTimeoutSeconds", 300))
+    publish_parser.add_argument("-TotalTimeoutSeconds", "--total-timeout-seconds", type=int, default=config_int("totalTimeoutSeconds", 0))
+    publish_parser.add_argument("-Quiet", "--quiet", action="store_true", default=config_bool("quiet", True))
+    publish_parser.add_argument("-Verbose", "--verbose", action="store_true")
     publish_parser.add_argument("-WhatIf", "--what-if", action="store_true")
     publish_parser.set_defaults(handler=handle_publish)
 
@@ -1229,6 +1427,8 @@ def handle_resolve_plan(args: argparse.Namespace) -> int:
 
 
 def handle_publish(args: argparse.Namespace) -> int:
+    if getattr(args, "verbose", False):
+        args.quiet = False
     result = execute_publish(args)
     if args.format == "text":
         print(publish_result_to_text(result))

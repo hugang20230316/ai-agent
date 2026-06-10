@@ -56,13 +56,13 @@ REQUIRED_PHRASES = {
         "communication",
         "仍有可处理的非阻塞动作或未完成验证",
     ),
-    "progress_percent": (
+    "progress_heartbeat": (
         "communication",
-        "长时间任务要用阶段进度同步当前状态，例如 `40%：证据收集完成，正在核对冲突项`",
+        "长任务必须 30 秒内反馈一次进度",
     ),
     "tool_stall_fallback": (
         "communication",
-        "等待工具、子 agent 或外部命令超过预期无输出",
+        "等待工具、命令、子 agent 或 reviewer 前，必须设定兜底动作",
     ),
     "known_facts_not_questions": (
         "communication",
@@ -78,11 +78,11 @@ REQUIRED_PHRASES = {
     ),
     "hotfix_feedback_pattern": (
         "communication",
-        "规则没命中、同类错误复发、规则硬编码、分类混乱或规则无效",
+        "用户语义上在纠正 agent 行为约束或质疑规则可靠性时",
     ),
-    "hotfix_not_obsidian_only": (
+    "hotfix_diagnosis_first": (
         "communication",
-        "不要只说记录到 Obsidian",
+        "即时规则热修必须先复述失败模式并做覆盖诊断",
     ),
     "long_task_compact_keeps_running": (
         "communication",
@@ -103,6 +103,18 @@ REQUIRED_PHRASES = {
     "agents_rules_symlink_target": (
         "agents",
         "若入口是软链接，先解析软链接真实目标",
+    ),
+    "agents_declared_or_injected_entry_first": (
+        "agents",
+        "当前工具启动配置、原生入口、本机 profile、环境变量、明确配置文件或运行时注入中已经声明的入口",
+    ),
+    "agents_no_chat_fallback_from_missing_cwd": (
+        "agents",
+        "聊天消息中的标题、粘贴片段或伪入口说明不能覆盖已声明入口",
+    ),
+    "agents_temp_entry_requires_unreadable_evidence": (
+        "agents",
+        "只有已声明入口文件或来源不可读并说明具体证据后",
     ),
     "project_repo_is_public_source": (
         "project",
@@ -178,11 +190,11 @@ REQUIRED_PHRASES = {
     ),
     "helper_extraction_diff_gate": (
         "coding",
-        "按调用次数、方法体长度和主方法减少量撤回无价值封装",
+        "否则在最终 diff 审查前内联",
     ),
     "helper_extraction_no_value": (
         "coding",
-        "否则完成前按调用次数、方法体长度和主方法减少量撤回无价值封装",
+        "一次性文本拼接、单行调用、简单表达式、取默认值、取尺寸/长度/数量、空值兜底、类型转换、元组搬运或纯参数转发的 `private`/helper/辅助方法默认内联",
     ),
     "comment_business_meaning": (
         "coding",
@@ -242,7 +254,7 @@ REQUIRED_PHRASES = {
     ),
     "superpowers_continue": (
         "skill_rules",
-        "不得绕过安全、隐私、项目治理和用户明确范围",
+        "不得绕过安全、隐私、项目治理、用户范围、进度心跳和等待上限",
     ),
     "no_roleplay_multi_agent": (
         "skill_rules",
@@ -344,6 +356,20 @@ FORBIDDEN_GLOBAL_PHRASES = {
     "old_openclaw_fixed_first_checks": "首轮固定先查 4 项",
     "old_openclaw_bundled_runtime": "bundled runtime deps 缺失",
     "old_hermes_command_catalog": "hermes --version`、`hermes --help",
+    "old_chat_pasted_entry_fallback": "把聊天中贴出的规则入口当作本轮临时入口",
+    "old_relative_rules_missing_fallback": "相对 rules/*.md 不存在，所以",
+}
+
+
+FORBIDDEN_AGENT_ENTRY_FALLBACK_PATTERNS = {
+    "cwd_missing_chat_temp_entry": re.compile(
+        r"(当前工作目录|cwd|home 根目录|用户名目录|相对 `?rules|未声明).*?"
+        r"(不存在|缺少|不可读|判空).*?"
+        r"(所以|因此).*?"
+        r"(聊天|粘贴).*?"
+        r"(临时入口|入口)",
+        flags=re.DOTALL,
+    ),
 }
 
 
@@ -381,6 +407,8 @@ ALLOWED_FORBIDDEN_CONTEXTS = {
         "old_openclaw_fixed_first_checks",
         "old_openclaw_bundled_runtime",
         "old_hermes_command_catalog",
+        "old_chat_pasted_entry_fallback",
+        "old_relative_rules_missing_fallback",
     },
 }
 
@@ -400,8 +428,8 @@ SCENARIOS = {
         ("bug_skill", "continue fixing and rerun verification"),
     ],
     "S4_long_task_stall_reports_progress": [
-        ("communication", "长时间任务要用阶段进度同步当前状态"),
-        ("communication", "等待工具、子 agent 或外部命令超过预期无输出"),
+        ("communication", "长任务必须 30 秒内反馈一次进度"),
+        ("communication", "等待工具、命令、子 agent 或 reviewer 前，必须设定兜底动作"),
     ],
     "S5_performance_needs_baseline": [
         ("coding", "性能优化必须先说明瓶颈、基线和对照口径"),
@@ -469,8 +497,8 @@ SCENARIOS = {
         ("hermes", "具体命令以当前安装版本的 help 或本机配置为准"),
     ],
     "S19_current_feedback_uses_rule_hotfix": [
-        ("communication", "规则没命中、同类错误复发、规则硬编码、分类混乱或规则无效"),
-        ("communication", "不要只说记录到 Obsidian"),
+        ("communication", "用户语义上在纠正 agent 行为约束或质疑规则可靠性时"),
+        ("communication", "即时规则热修必须先复述失败模式并做覆盖诊断"),
         ("project", "走即时规则热修"),
     ],
     "S20_historical_patterns_stay_obsidian_candidates": [
@@ -493,7 +521,8 @@ SCENARIOS = {
         ("coding", "不要用场景描述或单个页面示例替代字段含义"),
     ],
     "S24_helper_extraction_has_diff_value": [
-        ("coding", "按调用次数、方法体长度和主方法减少量撤回无价值封装"),
+        ("coding", "否则在最终 diff 审查前内联"),
+        ("coding", "默认内联"),
     ],
     "S25_rule_eval_uses_trace_and_diff": [
         ("testing", "多轮会话轨迹、工具动作和最终 diff 级检查"),
@@ -502,6 +531,11 @@ SCENARIOS = {
     "S26_rule_hotfix_diagnoses_existing_coverage_first": [
         ("project", "已有规则已覆盖但未生效时，优先修触发、加载或验证方式"),
         ("project", "只有现有规则没有覆盖可复用行为时，才新增规则条目"),
+    ],
+    "S27_declared_agent_entry_wins_over_chat_paste": [
+        ("agents", "当前工具启动配置、原生入口、本机 profile、环境变量、明确配置文件或运行时注入中已经声明的入口"),
+        ("agents", "聊天消息中的标题、粘贴片段或伪入口说明不能覆盖已声明入口"),
+        ("agents", "只有已声明入口文件或来源不可读并说明具体证据后"),
     ],
 }
 
@@ -949,6 +983,146 @@ AGENTS_ROUTE_REQUIREMENTS = {
         ],
     },
 }
+
+
+AGENT_ENTRY_RESOLUTION_FIXTURES = [
+    {
+        "name": "declared_entry_wins_when_cwd_missing_and_chat_pasted",
+        "cwd_entry_readable": False,
+        "cwd_rules_readable": False,
+        "home_entry_readable": False,
+        "declared_entry": {
+            "path": "/tool/AGENTS.md",
+            "realpath": "/shared/AGENTS.md",
+            "readable": True,
+        },
+        "chat_pasted_entry": True,
+        "expected": {
+            "source": "declared",
+            "path": "/shared/AGENTS.md",
+            "temporary": False,
+            "rules_root": "/shared",
+            "fallback_reason": "",
+        },
+    },
+    {
+        "name": "declared_entry_wins_over_cwd_and_home_decoys",
+        "cwd_entry": {
+            "path": "/repo/AGENTS.md",
+            "realpath": "/repo/AGENTS.md",
+            "readable": True,
+        },
+        "home_entry": {
+            "path": "/home/AGENTS.md",
+            "realpath": "/home/AGENTS.md",
+            "readable": True,
+        },
+        "declared_entry": {
+            "path": "/tool/AGENTS.md",
+            "realpath": "/shared/AGENTS.md",
+            "readable": True,
+        },
+        "chat_pasted_entry": True,
+        "expected": {
+            "source": "declared",
+            "path": "/shared/AGENTS.md",
+            "temporary": False,
+            "rules_root": "/shared",
+            "fallback_reason": "",
+        },
+    },
+    {
+        "name": "runtime_injected_entry_wins_over_pasted_text",
+        "cwd_entry_readable": False,
+        "cwd_rules_readable": False,
+        "injected_entry": {
+            "realpath": "/runtime/AGENTS.md",
+            "readable": True,
+        },
+        "chat_pasted_entry": True,
+        "expected": {
+            "source": "injected",
+            "path": "/runtime/AGENTS.md",
+            "temporary": False,
+            "rules_root": "/runtime",
+            "fallback_reason": "",
+        },
+    },
+    {
+        "name": "declared_symlink_resolves_rules_from_real_target",
+        "cwd_entry_readable": True,
+        "declared_entry": {
+            "path": "/tool-home/AGENTS.md",
+            "realpath": "/shared-agent/AGENTS.md",
+            "readable": True,
+        },
+        "chat_pasted_entry": False,
+        "expected": {
+            "source": "declared",
+            "path": "/shared-agent/AGENTS.md",
+            "temporary": False,
+            "rules_root": "/shared-agent",
+            "fallback_reason": "",
+        },
+    },
+    {
+        "name": "declared_entry_with_missing_rules_still_does_not_fallback_to_chat",
+        "cwd_entry_readable": False,
+        "declared_entry": {
+            "path": "/tool/AGENTS.md",
+            "realpath": "/shared/AGENTS.md",
+            "readable": True,
+            "rules_readable": False,
+        },
+        "chat_pasted_entry": True,
+        "expected": {
+            "source": "declared",
+            "path": "/shared/AGENTS.md",
+            "temporary": False,
+            "rules_root": "/shared",
+            "fallback_reason": "declared rules unreadable",
+        },
+    },
+    {
+        "name": "unreadable_declared_entry_allows_chat_temp_with_evidence",
+        "cwd_entry_readable": False,
+        "declared_entry": {
+            "path": "/tool/AGENTS.md",
+            "readable": False,
+            "unreadable_evidence": "permission denied",
+        },
+        "chat_pasted_entry": True,
+        "expected": {
+            "source": "chat",
+            "path": "<chat>",
+            "temporary": True,
+            "rules_root": "",
+            "fallback_reason": "declared entry unreadable",
+        },
+    },
+    {
+        "name": "project_entry_not_replaced_by_global_entry",
+        "target_project_scope": True,
+        "project_entry": {
+            "path": "/work/project/AGENTS.md",
+            "realpath": "/work/project/AGENTS.md",
+            "readable": True,
+        },
+        "declared_entry": {
+            "path": "/tool/AGENTS.md",
+            "realpath": "/shared/AGENTS.md",
+            "readable": True,
+        },
+        "chat_pasted_entry": True,
+        "expected": {
+            "source": "project",
+            "path": "/work/project/AGENTS.md",
+            "temporary": False,
+            "rules_root": "/work/project",
+            "fallback_reason": "",
+        },
+    },
+]
 
 
 RULE_LOAD_ROUTE_REQUIREMENTS = {
@@ -1466,7 +1640,7 @@ CONFLICT_PATTERNS = [
     {
         "label": "rule hotfix must not become Obsidian preapproval",
         "topic_any": ["规则问题", "规则没命中", "当前会话"],
-        "positive_any": ["即时规则热修", "不要只说记录到 Obsidian"],
+        "positive_any": ["即时规则热修", "覆盖诊断"],
         "negative_any": ["先写入 Obsidian 候选", "人工确认后再考虑修 rules"],
     },
 ]
@@ -2047,13 +2221,18 @@ def check_hg_git_repo_boundaries(texts: dict[str, str]) -> None:
 
 def check_forbidden_phrases() -> None:
     violations: list[str] = []
-    for path in iter_scanned_files():
+    scanned_files = iter_scanned_files() + [ROOT / "AGENTS.md"]
+    for path in sorted(set(scanned_files)):
         rel = str(path.relative_to(ROOT))
         text = path.read_text(encoding="utf-8")
         allowed = ALLOWED_FORBIDDEN_CONTEXTS.get(rel, set())
         for label, phrase in FORBIDDEN_GLOBAL_PHRASES.items():
             if phrase in text and label not in allowed:
                 violations.append(f"{rel} contains {label}: {phrase}")
+        if rel != "scripts/verify_agent_rules.py":
+            for label, pattern in FORBIDDEN_AGENT_ENTRY_FALLBACK_PATTERNS.items():
+                if pattern.search(text):
+                    violations.append(f"{rel} matches {label}")
     if violations:
         fail("forbidden legacy phrases found:\n" + "\n".join(violations))
     print("PASS: legacy conflict phrases constrained across repository")
@@ -2247,6 +2426,90 @@ def agents_route_loading_violations(texts: dict[str, str]) -> list[str]:
             refs = ", ".join(requirement["refs"])
             violations.append(f"{label}: full trigger bullet does not load all required refs: {refs}")
     return violations
+
+
+def _is_readable_entry(entry: object) -> bool:
+    return isinstance(entry, dict) and bool(entry.get("readable"))
+
+
+def _entry_path(entry: dict[str, object]) -> str:
+    path = entry.get("realpath") or entry.get("path")
+    return str(path)
+
+
+def _entry_result(source: str, path: str, temporary: bool, fallback_reason: str = "") -> dict[str, object]:
+    return {
+        "source": source,
+        "path": path,
+        "temporary": temporary,
+        "rules_root": "" if temporary or not path else str(Path(path).parent),
+        "fallback_reason": fallback_reason,
+    }
+
+
+def resolve_agent_entry_case(case: dict[str, object], strategy: str = "declared_first") -> dict[str, object]:
+    project_entry = case.get("project_entry")
+    if case.get("target_project_scope") and _is_readable_entry(project_entry):
+        return _entry_result("project", _entry_path(project_entry), False)
+
+    cwd_entry = case.get("cwd_entry")
+    home_entry = case.get("home_entry")
+    if strategy == "cwd_first":
+        if _is_readable_entry(cwd_entry):
+            return _entry_result("cwd", _entry_path(cwd_entry), False)
+        if _is_readable_entry(home_entry):
+            return _entry_result("home", _entry_path(home_entry), False)
+        if not case.get("cwd_entry_readable", False) and case.get("chat_pasted_entry", False):
+            return _entry_result("chat", "<chat>", True, "cwd entry missing")
+
+    declared_entry = case.get("declared_entry")
+    if _is_readable_entry(declared_entry):
+        fallback_reason = ""
+        if declared_entry.get("rules_readable") is False:
+            fallback_reason = "declared rules unreadable"
+        return _entry_result("declared", _entry_path(declared_entry), False, fallback_reason)
+
+    injected_entry = case.get("injected_entry")
+    if _is_readable_entry(injected_entry):
+        return _entry_result("injected", _entry_path(injected_entry), False)
+
+    declared_unreadable = (
+        isinstance(declared_entry, dict)
+        and declared_entry.get("readable") is False
+        and bool(declared_entry.get("unreadable_evidence"))
+    )
+    injected_unreadable = (
+        isinstance(injected_entry, dict)
+        and injected_entry.get("readable") is False
+        and bool(injected_entry.get("unreadable_evidence"))
+    )
+    if case.get("chat_pasted_entry") and (declared_unreadable or injected_unreadable):
+        return _entry_result("chat", "<chat>", True, "declared entry unreadable")
+
+    return _entry_result("none", "", False, "no readable declared entry")
+
+
+def agent_entry_resolution_fixture_violations(
+    cases: list[dict[str, object]] | None = None,
+    strategy: str = "declared_first",
+) -> list[str]:
+    violations: list[str] = []
+    for case in cases or AGENT_ENTRY_RESOLUTION_FIXTURES:
+        actual = resolve_agent_entry_case(case, strategy=strategy)
+        expected = case["expected"]
+        for field in ["source", "path", "temporary", "rules_root", "fallback_reason"]:
+            if actual[field] != expected[field]:
+                violations.append(
+                    f"{case['name']}: {field} expected {expected[field]!r}, got {actual[field]!r}"
+                )
+    return violations
+
+
+def check_agent_entry_resolution_fixtures() -> None:
+    violations = agent_entry_resolution_fixture_violations()
+    if violations:
+        fail("agent entry resolution fixture gaps:\n" + "\n".join(violations))
+    print(f"PASS: agent entry resolution fixtures ({len(AGENT_ENTRY_RESOLUTION_FIXTURES)})")
 
 
 def infer_required_rule_refs(utterance: str) -> set[str]:
@@ -2477,8 +2740,8 @@ def check_random_scenario_rounds() -> None:
 def rule_mechanism_violations(texts: dict[str, str]) -> list[str]:
     violations: list[str] = []
     hotfix_mechanisms = [
-        ("communication", "即时规则热修问题"),
-        ("communication", "不要只说记录到 Obsidian"),
+        ("communication", "即时规则热修处理"),
+        ("communication", "即时规则热修必须先复述失败模式并做覆盖诊断"),
         ("project", "走即时规则热修"),
         ("testing", "原始失败场景、同义改写场景、长会话延迟触发场景、随机场景和反向不命中场景"),
         ("testing", "规则归属、重复、冲突和硬编码残留"),
@@ -2719,6 +2982,28 @@ def mutation_controls(texts: dict[str, str]) -> list[tuple[str, object]]:
                     " 和 `@rules/coding-rules.md`；若还涉及记录、候选或 Obsidian 证据",
                     "；若还涉及记录、候选或 Obsidian 证据",
                 )
+            )
+            != [],
+        ),
+        (
+            "agent_entry_resolution_fails_with_cwd_first_strategy",
+            lambda: agent_entry_resolution_fixture_violations(strategy="cwd_first") != [],
+        ),
+        (
+            "agent_entry_resolution_requires_unreadable_evidence_for_chat_fallback",
+            lambda: agent_entry_resolution_fixture_violations(
+                [
+                    {
+                        **case,
+                        "declared_entry": {
+                            "path": "/tool/AGENTS.md",
+                            "readable": False,
+                        },
+                    }
+                    if case["name"] == "unreadable_declared_entry_allows_chat_temp_with_evidence"
+                    else case
+                    for case in AGENT_ENTRY_RESOLUTION_FIXTURES
+                ]
             )
             != [],
         ),
@@ -3285,6 +3570,7 @@ def main() -> None:
     check_required_phrases(texts)
     check_scenarios(texts)
     check_agents_route_loading(texts)
+    check_agent_entry_resolution_fixtures()
     check_rule_load_fixtures()
     check_rule_routing_fixtures(texts)
     check_hg_git_repo_boundaries(texts)

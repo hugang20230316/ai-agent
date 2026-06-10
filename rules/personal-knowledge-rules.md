@@ -114,7 +114,7 @@ feedback_target: 验证流程
 
 默认不要写 `agent_load`、`contexts`、`sensitivity`、`secret_policy`、`secret_refs`、`repeat_key`、`repeat_count`、`simple_tags`、`primary_home` 或 `topics`。候选日志不在 frontmatter 中保留凭据字段；确实需要说明敏感配置参与排查时，只在正文里用脱敏中文描述，不得包含真实凭据、连接串、token 或可反推出凭据的片段。
 
-正文必须包含 `摘要`，其余小节按 `log_kind` 选择，不强制所有日志套同一组字段：
+正文必须包含 `摘要`。`摘要` 里的 `会话摘要` 必须用独立的 `角色` / `内容` Markdown 表格压缩保留多轮对话结果，按 `user`、`assistant`、`user`、`assistant` 的纵向顺序呈现用户关键诉求或纠正以及 agent 对应处理；不得只写一句抽象概括，也不得用左右两列把多轮对话压扁，也不得把表格挂在列表项下导致 Obsidian 只显示管道文本。其余小节按 `log_kind` 选择，不强制所有日志套同一组字段：
 
 - `feedback`：`反馈`、`暴露的问题`、`处置`、`规则影响`、`关联`
 - `incident`：`现象`、`原因`、`处理`、`验证`、`关联`

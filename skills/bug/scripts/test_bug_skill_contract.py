@@ -39,6 +39,10 @@ REQUIRED_PHRASES = {
     "missing_context_blocker": "required context or identifiers are missing",
     "output_self_check": "If any section is missing after self-check, revise the answer before sending it.",
     "qa_summary": "`给测试的总结`",
+    "solution_first": "Lead with `解决方案`, then `给测试的总结`, then `原因` whenever there is a fix status",
+    "repair_status_summary": "repair status summary",
+    "compression_keeps_sections": "Compression means each required section keeps only facts",
+    "no_forced_details": "instead of forcing unrelated endpoints, fields, or code locations",
     "live_url_test": "--live-url <known-readable-bug-url>",
     "forward_historical_split": "distinguish forward-path fix, historical data repair, and query-side fallback",
     "stale_reference_decision": "stale persisted references",
@@ -72,14 +76,14 @@ REQUIRED_PHRASES = {
 
 
 REQUIRED_HEADINGS = [
+    "`解决方案`",
+    "`给测试的总结`",
     "`原因`",
     "`接口`",
     "`输入参数`",
     "`输出结果`",
     "`证据`",
     "`归属与影响`",
-    "`修复状态或建议`",
-    "`给测试的总结`",
 ]
 
 
@@ -104,6 +108,10 @@ def check_skill_text() -> None:
     for heading in REQUIRED_HEADINGS:
         if heading not in text:
             fail(f"missing required output heading: {heading}")
+
+    positions = [text.index(heading) for heading in REQUIRED_HEADINGS]
+    if positions != sorted(positions):
+        fail(f"required output headings are out of order: {', '.join(REQUIRED_HEADINGS)}")
 
     for forbidden in [
         "## Shared Output",

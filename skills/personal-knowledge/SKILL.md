@@ -54,7 +54,7 @@ AI must decide candidate `log_kind`, `domain`, `tags`, `related_issues`, and use
 
 Keep candidate entries short and readable, but do not drop key meaning, evidence, sources, or validation boundaries.
 
-Every note has `log_kind` and `摘要`. After that, use only the sections that fit the log kind:
+Every note has `log_kind` and `摘要`. `摘要` is the human review entry point and must use four review items with these exact labels: `会话摘要`, `根因判断`, `解决方案`, and `验证边界`. `会话摘要` must preserve the useful multi-turn dialogue result as a compact standalone Markdown table with exact columns `角色` and `内容`; rows must be ordered vertically as `user`, `assistant`, `user`, `assistant`, so the reviewer can read what the user asked or corrected and how the agent responded without reading the raw conversation. Do not place this table under a list item; write `会话摘要：` as a plain line, then a blank line, then the table, so Obsidian renders it as a real table. The other three items should be short factual statements. A reviewer must be able to understand the session's key dialogue, cause or judgment, treatment, and verification boundary from `摘要` without reading the raw conversation. After that, use only the sections that fit the log kind:
 
 - `feedback`: `反馈`, `暴露的问题`, `处置`, `规则影响`, `关联`
 - `incident`: `现象`, `原因`, `处理`, `验证`, `关联`

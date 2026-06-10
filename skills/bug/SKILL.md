@@ -102,20 +102,21 @@ Keep bug-skill-specific test notes, fixtures, and cleanup guidance under this sk
 
 ## Evidence and Output Gate
 
-Before sending a bug analysis final answer, self-check that the answer contains these sections. Keep the heading even when blocked, and write the exact blocker under it.
+Before sending a bug analysis final answer, repair status summary, handoff, or complete conclusion, self-check that the answer contains these sections. Keep the heading even when blocked, and write the exact blocker under it.
+Lead with `解决方案`, then `给测试的总结`, then `原因` whenever there is a fix status, fix recommendation, or next action. Compression means each required section keeps only facts that justify or verify that solution, or states the exact blocker; when a required section has no additional actionable detail, say "无额外信息" or the specific missing evidence instead of forcing unrelated endpoints, fields, or code locations. Omit inspected endpoints, tables, fields, or code locations unless they change the action or the user asks for a full handoff report.
 
-1. `原因`: the first bad output, first bad transform, or exact code defect. Do not use "大概率/应该是/可能是" as the conclusion.
-2. `接口`: list only distinct boundaries that matter: user-facing route/API, service-layer endpoint or method, upstream endpoint if actually called. Do not split "对外接口/服务接口/代码位置" into redundant headings when they describe the same boundary.
-3. `输入参数`: include all fields needed to reproduce the same result, including required context or identifiers when the interface requires them. Mask only true secrets.
-4. `输出结果`: include the actual response status/message/data excerpt and the expected response or contract.
-5. `证据`: cite tracker content, code location, database/log/API evidence, and what each piece proves. Separate verified facts, code inference, and blocked evidence.
-6. `归属与影响`: classify as code defect, data issue, configuration issue, external dependency, frontend/UI ownership, or blocked evidence; include affected data shape or workflow.
-7. `修复状态或建议`: state whether code was changed. If code is changed, distinguish forward-path fix, historical data repair, and query-side fallback. Do not imply existing bad data is repaired unless a migration, repair script, or read-side compatibility path was actually added. If not changed, give the smallest fix and the exact file/method if known.
-8. `给测试的总结`: write concise QA notes from the tester's product surface, usually App, mini program, web page, or admin UI click paths. Do not make API names, database tables, log systems, class names, or method names the reproduction entry unless the user explicitly asks for interface/API regression. Include expected/actual, impact, and 1-3 regression points directly tied to this bug. Do not add generic smoke tests.
+1. `解决方案`: state whether code was changed and give the smallest fix or next action first. If code is changed, distinguish forward-path fix, historical data repair, and query-side fallback. Do not imply existing bad data is repaired unless a migration, repair script, or read-side compatibility path was actually added.
+2. `给测试的总结`: write concise QA notes from the tester's product surface, usually App, mini program, web page, or admin UI click paths. Do not make API names, database tables, log systems, class names, or method names the reproduction entry unless the user explicitly asks for interface/API regression. Include expected/actual, impact, and 1-3 regression points directly tied to this bug. Do not add generic smoke tests.
+3. `原因`: the first bad output, first bad transform, or exact code defect. Do not use "大概率/应该是/可能是" as the conclusion.
+4. `接口`: list only distinct boundaries that matter: user-facing route/API, service-layer endpoint or method, upstream endpoint if actually called. Do not split "对外接口/服务接口/代码位置" into redundant headings when they describe the same boundary.
+5. `输入参数`: include all fields needed to reproduce the same result, including required context or identifiers when the interface requires them. Mask only true secrets.
+6. `输出结果`: include the actual response status/message/data excerpt and the expected response or contract.
+7. `证据`: cite tracker content, code location, database/log/API evidence, and what each piece proves. Separate verified facts, code inference, and blocked evidence.
+8. `归属与影响`: classify as code defect, data issue, configuration issue, external dependency, frontend/UI ownership, or blocked evidence; include affected data shape or workflow.
 
 If any section is missing after self-check, revise the answer before sending it.
 
-This full section set is for final bug reports, handoffs, or when the user asks for a complete conclusion. For normal follow-up questions during the same investigation, answer only the question asked and omit unrelated sections such as QA notes unless the user explicitly requests them.
+This full section set is for final bug reports, repair status summaries, handoffs, or when the user asks for a complete conclusion. For normal follow-up questions during the same investigation, answer only the question asked and omit unrelated sections such as QA notes unless the user explicitly requests them.
 
 ## Shared Guardrails
 

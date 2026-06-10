@@ -1,6 +1,6 @@
 ---
 name: publish-gitlab-argo
-description: "Automate a configured development release through GitLab and Argo CD APIs. Use when the user asks to publish, release, sync dev applications, preview a release plan, or publish selected components."
+description: "Automate a configured development release through GitLab and Argo CD APIs. Use when the user asks to 发布 / 发版 / 同步 dev, or publish, release, sync dev applications, preview a release plan, or publish selected components."
 ---
 
 # Publish GitLab Argo
@@ -46,4 +46,6 @@ The standard publish flow is pre-approved. Use the local persisted approval for 
 
 ## Output Contract
 
-Any final publish success/failure summary must report the planned tag, final release tag, actual deployed tag, updated apps, unchanged apps, failed apps, and any timeout/status recheck performed, even after multi-turn status updates. When a publish command actually runs, also report the total publish elapsed time. Prefer the publish command's `elapsedSeconds`; if it is unavailable, report the measured wall-clock time and name that source. For preview-only resolve-plan output, state that no publish was executed and do not invent a publish elapsed time.
+Any final publish success/failure summary must report the planned tag, final release tag, commit, GitLab pipeline status, updated apps with previous and deployed tags, publish start time, publish completion time, total publish elapsed time, and any timeout/status recheck performed, even after multi-turn status updates. Put the GitLab pipeline line immediately after the commit line. Show unchanged apps, failed apps, and timeout/status rechecks only when they are non-empty.
+
+When a publish command actually runs, calculate the final total publish elapsed time from the user's publish request time to the last target Argo CD app reaching `Synced` with operation phase `Succeeded`. Prefer the latest exact Argo CD `finishedAt` or `deployedAt` timestamp across target apps as the publish completion time. If only the sync request/click time is available, use request time plus 5 seconds and label it estimated. If the user's request time is unavailable, fall back to the publish command start time and name that source. Do not use the publish command's `elapsedSeconds` as the final user-facing publish elapsed time unless it is the only available source and is labeled as command elapsed time. For preview-only resolve-plan output, state that no publish was executed and do not invent a publish elapsed time.
