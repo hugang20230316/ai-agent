@@ -48,7 +48,7 @@ Codex 侧的目标状态：
 ~/.codex/rules/coding-rules.md -> <ai-agent>/rules/coding-rules.md
 ~/.codex/rules/communication-rules.md -> <ai-agent>/rules/communication-rules.md
 ~/.codex/rules/markdown-rules.md -> <ai-agent>/rules/markdown-rules.md
-~/.codex/rules/mcp-output-rules.md -> <ai-agent>/rules/mcp-output-rules.md
+~/.codex/rules/mcp-rules.md -> <ai-agent>/rules/mcp-rules.md
 ~/.codex/rules/openclaw-rules.md -> <ai-agent>/rules/openclaw-rules.md
 ~/.codex/rules/project-governance.md -> <ai-agent>/rules/project-governance.md
 ~/.codex/rules/requirements-and-prototype.md -> <ai-agent>/rules/requirements-and-prototype.md

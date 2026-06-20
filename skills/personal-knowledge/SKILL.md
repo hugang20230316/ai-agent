@@ -35,7 +35,7 @@ This skill can cover multiple agent CLIs. Each source has its own session log lo
 | `hermes` | Hermes | Local private config |
 | `openclaw` | OpenClaw | Local private config |
 
-The scanner uses `source` to tag candidates and `session_id` (derived from the JSONL filename) to deduplicate against earlier scans and against Claude auto-memory.
+The scanner uses `source` to tag candidates and `session_id` (derived from the JSONL filename) to deduplicate against earlier scans and against Claude auto-memory. Scheduled scans must process unhandled sessions rather than only the wall-clock window in which the machine happened to be awake.
 
 ## Workflow
 
@@ -48,13 +48,21 @@ The scanner uses `source` to tag candidates and `session_id` (derived from the J
 
 Current-session rule corrections are a separate hotfix path, not candidate promotion. If the user explicitly says a rule missed, a rule is hard-coded, the same rule failure repeated, or the rule category is wrong, follow project-governance hotfix rules first; optionally capture the failure mode and verification result as an Obsidian candidate after the rule change.
 
+User complaints are meaningful by default. When the user complains, corrects, questions, gets angry about, or repeatedly emphasizes agent behavior, rules, records, automation, long tasks, write paths, missing Obsidian entries, scanner behavior, or timestamp format, treat it as high-value feedback unless there is clear evidence that it has no target, no reusable review point, no rule/execution/product implication, or cannot be safely recorded. Do not dismiss a complaint as low value merely because it is emotionally worded.
+
 AI must decide candidate `log_kind`, `domain`, `tags`, `related_issues`, and useful body sections from evidence. Do not create human tasks asking the user to review those fields, or to decide whether an item should become a rule, skill, or formal knowledge by default. Human review is reserved for explicit approval actions such as approve, archive, delete, merge, or a separate confirmed promotion to rules/skills.
 
 ## Candidate Body
 
 Keep candidate entries short and readable, but do not drop key meaning, evidence, sources, or validation boundaries.
 
-Every note has `log_kind` and `摘要`. `摘要` is the human review entry point and must use four review items with these exact labels: `会话摘要`, `根因判断`, `解决方案`, and `验证边界`. `会话摘要` must preserve the useful multi-turn dialogue result as a compact standalone Markdown table with exact columns `角色` and `内容`; rows must be ordered vertically as `user`, `assistant`, `user`, `assistant`, so the reviewer can read what the user asked or corrected and how the agent responded without reading the raw conversation. Do not place this table under a list item; write `会话摘要：` as a plain line, then a blank line, then the table, so Obsidian renders it as a real table. The other three items should be short factual statements. A reviewer must be able to understand the session's key dialogue, cause or judgment, treatment, and verification boundary from `摘要` without reading the raw conversation. After that, use only the sections that fit the log kind:
+Every note has `log_kind` and `摘要`. `摘要` is the human review entry point and contains only `会话摘要` and `结论`. `会话摘要` must preserve the useful dialogue result as a compact standalone Markdown table with columns `角色`, `语义标签`, and `内容`; `角色` only uses `user` or `assistant`, and each summarized message gets its own row. Do not place this table under a list item; write `会话摘要：` as a plain line, then a blank line, then the table, so Obsidian renders it as a real table.
+
+Do not force every session into two user/assistant rounds. Short sessions usually need only a few rows; complex sessions should keep the key turns needed to recover the task goal, user corrections or clarifications, important decisions, execution result, and validation boundary. If the agent continues work without a new user message, keep an assistant row only for a meaningful phase and state in `内容` how it continues the prior user goal; never invent a user row.
+
+`语义标签` is optional. Use process labels such as `初步定位`, `目标收窄`, `承接处理`, or `验证收口` only when they clarify the row. Use feedback labels such as `纠正`, `抱怨`, `发火`, or `辱骂` only when the evidence clearly supports them; when such a label appears in the table, frontmatter must also include matching `feedback_signal`, `feedback_target`, and a searchable tag.
+
+`结论` is 1-2 factual sentences explaining why the note is worth keeping and what validation boundary applies. Do not write generic meta text such as "suitable as a candidate" or "needs human review." After that, use only the sections that fit the log kind:
 
 - `feedback`: `反馈`, `暴露的问题`, `处置`, `规则影响`, `关联`
 - `incident`: `现象`, `原因`, `处理`, `验证`, `关联`
@@ -102,7 +110,7 @@ domain: 01-Agent工作台
 tags: []
 source: codex
 session_id: "real-session-id"
-created_at: "2026-05-28T12:34:56+08:00"
+created_at: "2026-05-28 12:34:56"
 reviewed_at: ""
 review_count: 0
 evidence_hash: "content-hash"
@@ -114,7 +122,7 @@ duplicate_of: []
 
 `log_kind` must be one of `feedback`, `incident`, `change`, `decision`, `workflow`, `research`, or `plan`. `source` is required and must be one of `codex`, `claude`, `hermes`, `openclaw`; it tags the originating CLI. Scanner-generated candidates must include a real `session_id` so the sync tool can dedupe and replace stale files.
 
-`created_at` must include date and time, at least to seconds. Do not use date-only values such as `2026-05-28`.
+`created_at` and populated `reviewed_at` must use Beijing time in `YYYY-MM-DD HH:mm:ss` format, for example `2026-06-16 21:39:39`. Do not use date-only values such as `2026-05-28`; do not use ISO strings such as `2026-06-16T21:39:39+08:00`.
 
 `domain` is the note's single business home, not the storage folder. Use one of `01-Agent工作台`, `02-研发实现`, `03-排查与观测`, `04-需求与文档`, `05-交付与验证`. Notes may be stored under `AgentKnowledge/Inbox/YYYY-MM-DD/` while still having a non-Inbox `domain`.
 

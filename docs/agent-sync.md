@@ -22,7 +22,7 @@
 - `skill-rules.md`：skill 触发、加载和修改边界规则
 - `openclaw-rules.md`：OpenClaw 排障规则
 - `project-governance.md`：同步边界与治理规则
-- `mcp-output-rules.md`：MCP 查询输出规则
+- `mcp-rules.md`：MCP 调用与故障处理规则
 - `requirements-and-prototype.md`：需求与原型规则
 - `personal-knowledge-rules.md`：Obsidian 与个人知识库沉淀规则
 

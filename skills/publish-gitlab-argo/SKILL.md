@@ -27,7 +27,7 @@ The standard publish flow is pre-approved. Use the local persisted approval for 
 1. Inspect the commits/files being published and identify the affected components before choosing apps.
 2. Resolve the requested publish scope: selected components from the change impact, explicit apps, all apps, preview only, or known-tag app update.
 3. Use default apps only as a fallback when the changed components cannot be mapped more specifically.
-4. Reuse any in-flight publish result instead of creating duplicate tags or duplicate syncs.
+4. On retry, interruption, or re-publish requests, rerun `resolve-plan` before reusing any publish result; reuse only when the current `sourceCommit`, `effectiveTag`, and target apps all match.
 5. Resolve or create the configured release tag through the GitLab API.
 6. Wait for the configured release pipeline/status gate within the end-to-end publish command budget, not by adding independent full timeouts for each stage.
 7. Update only the configured deployment image tag through Argo CD APIs.

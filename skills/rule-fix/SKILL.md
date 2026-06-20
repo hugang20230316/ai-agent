@@ -58,6 +58,7 @@ Do not treat rule changes as ordinary Markdown edits. The goal is to change beha
    - Use `multi-agent-workflow`.
    - Spawn real subagents with `fork_context: false`; same-chat roleplay does not count.
    - 用户确认规则修改后，隔离验证视为已授权且必须执行；不得以未单独授权多 agent 为由跳过。
+   - 审查或验证工具一旦超时、卡住、关闭失败或无法确认状态，必须立即停止该工具链，改用本地最小复核并把隔离验证标为未覆盖风险；不得继续等待、关闭、恢复、重试或发送输入给同一个运行实例、会话、子 agent 或 reviewer。若清理工具不支持显式超时，不得把清理动作放入用户交付的关键路径。
    - Give validators only the minimal rule text, scenario prompts, and output contract needed for validation.
    - Follow `references/validation-matrix.md`.
 

@@ -74,7 +74,7 @@ Shared rules:
 - `rules/skill-rules.md`: skill trigger and loading rules
 - `rules/openclaw-rules.md`: OpenClaw troubleshooting rules
 - `rules/project-governance.md`: project and personal-rule governance rules
-- `rules/mcp-output-rules.md`: MCP result output rules
+- `rules/mcp-rules.md`: MCP selection, invocation, and failure rules
 - `rules/requirements-and-prototype.md`: requirements and prototype rules
 - `rules/personal-knowledge-rules.md`: Obsidian and personal knowledge capture rules
 

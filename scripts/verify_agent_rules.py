@@ -19,6 +19,7 @@ FILES = {
     "agents": "AGENTS.md",
     "communication": "rules/communication-rules.md",
     "testing": "rules/testing-rules.md",
+    "long_task": "rules/long-task-rules.md",
     "coding": "rules/coding-rules.md",
     "skill_rules": "rules/skill-rules.md",
     "security": "rules/security-and-privacy-rules.md",
@@ -27,7 +28,7 @@ FILES = {
     "research": "rules/research-rules.md",
     "requirements": "rules/requirements-and-prototype.md",
     "evidence_output": "rules/evidence-output-rules.md",
-    "mcp_output": "rules/mcp-output-rules.md",
+    "mcp": "rules/mcp-rules.md",
     "openclaw": "rules/openclaw-rules.md",
     "hermes": "rules/hermes-rules.md",
     "personal_rules": "rules/personal-knowledge-rules.md",
@@ -1246,11 +1247,11 @@ RULE_LOAD_ROUTE_REQUIREMENTS = {
         ],
         "refs": ["@rules/project-governance.md"],
     },
-    "mcp_output": {
+    "mcp": {
         "terms": [
             "MCP",
         ],
-        "refs": ["@rules/mcp-output-rules.md"],
+        "refs": ["@rules/mcp-rules.md"],
     },
     "evidence_output": {
         "terms": [
@@ -1355,11 +1356,11 @@ FIXED_LOAD_FIXTURES = [
         "expected_refs": ["@rules/project-governance.md"],
     },
     {
-        "name": "mcp_output",
+        "name": "mcp",
         "utterance": "MCP 工具输出太长，请按数据源、命令结果和日志时间线整理。",
         "expected_refs": [
             "@rules/evidence-output-rules.md",
-            "@rules/mcp-output-rules.md",
+            "@rules/mcp-rules.md",
         ],
     },
     {
@@ -1498,12 +1499,12 @@ RANDOM_SCENARIO_FAMILIES = {
         "problems": ["只放一张默认 Mermaid", "代码围栏可能没闭合", "图表不能独立阅读", "正文依赖聊天上下文"],
         "actions": ["做 Markdown 自检", "补流程图", "使用保守 Mermaid", "给实际落盘路径"],
     },
-    "mcp_output": {
+    "mcp": {
         "route": "discussion",
-        "refs": ["@rules/mcp-output-rules.md"],
-        "subjects": ["MCP 查询", "MCP 资源", "MCP 调用", "MCP 兜底"],
-        "problems": ["连接来源不清", "兜底原因没说明", "MCP 资源没列明", "查询结果混在一起"],
-        "actions": ["说明 MCP 选择", "标明连接来源", "记录兜底方式", "按 MCP 边界输出"],
+        "refs": ["@rules/mcp-rules.md"],
+        "subjects": ["MCP 查询", "MCP 资源", "MCP 调用", "MCP 故障"],
+        "problems": ["MCP 失败被跳过", "MCP 0 命中被当成环境无日志", "具体数据源没用 MCP 查"],
+        "actions": ["先调用 MCP", "失败先修 MCP", "修不了报阻塞", "0 命中不下环境结论"],
     },
     "evidence_output": {
         "route": "discussion",
@@ -1542,7 +1543,7 @@ RANDOM_SCENARIO_ROUNDS = [
     ("long_task_and_closeout", ["long_task", "testing", "communication", "evidence_output"]),
     ("implementation_semantics", ["coding", "testing", "skill", "requirements"]),
     ("governance_and_safety", ["security", "project", "candidate", "skill"]),
-    ("research_docs_tools", ["research", "markdown", "mcp_output", "evidence_output", "rule_hotfix"]),
+    ("research_docs_tools", ["research", "markdown", "mcp", "evidence_output", "rule_hotfix"]),
 ]
 
 
