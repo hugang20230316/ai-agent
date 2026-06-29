@@ -141,6 +141,37 @@ def resolve_existing_path(path: str | Path | None) -> Path | None:
     return None
 
 
+def configured_publish_repo_paths() -> list[Path]:
+    values: list[str] = []
+    repo_path = PUBLISH_CONFIG.get("repoPath")
+    if repo_path:
+        values.append(str(repo_path))
+
+    repo_paths = PUBLISH_CONFIG.get("repoPaths") or PUBLISH_CONFIG.get("publishRepoPaths")
+    if isinstance(repo_paths, list):
+        values.extend(str(item) for item in repo_paths if str(item).strip())
+
+    paths: list[Path] = []
+    for value in values:
+        candidate = expand_user_path(value)
+        if candidate:
+            paths.append(candidate.resolve() if candidate.exists() else candidate)
+    return list(dict.fromkeys(paths))
+
+
+def ensure_publish_repo_allowed(path: Path) -> None:
+    allowed_paths = configured_publish_repo_paths()
+    if not allowed_paths:
+        raise RuntimeError("发布配置文件未声明 repoPath/repoPaths，禁止通过发布 skill 发布任何项目。")
+
+    resolved_path = path.resolve()
+    if resolved_path in [allowed.resolve() if allowed.exists() else allowed for allowed in allowed_paths]:
+        return
+
+    allowed_text = ", ".join(to_home_relative(item) for item in allowed_paths)
+    raise RuntimeError(f"仓库 {to_home_relative(resolved_path)} 不在发布配置允许列表中，禁止发布。允许仓库: {allowed_text}")
+
+
 def to_home_relative(path: str | Path | None) -> str:
     if path is None:
         return ""
@@ -213,11 +244,13 @@ def resolve_repo_path(requested_path: str | None) -> Path:
         candidate = expand_user_path(requested_path)
         assert candidate is not None
         if is_configured_repo(candidate):
+            ensure_publish_repo_allowed(candidate)
             return candidate.resolve()
         raise RuntimeError(f"RepoPath {to_home_relative(candidate)} 不存在，或不是可识别的发布仓库。")
 
     env_candidates = [os.getenv("PUBLISH_GITLAB_ARGO_REPO_PATH"), os.getenv("PUBLISH_DEV_REPO_PATH")]
     candidates: list[Path] = []
+    candidates.extend(configured_publish_repo_paths())
     for value in env_candidates:
         if value:
             candidates.append(Path(value).expanduser())
@@ -237,10 +270,13 @@ def resolve_repo_path(requested_path: str | None) -> Path:
     deduped: list[Path] = list(dict.fromkeys(candidates))
     for candidate in deduped:
         if is_configured_repo(candidate):
+            ensure_publish_repo_allowed(candidate)
             return candidate.resolve()
 
-    displayed = ", ".join(to_home_relative(candidate) for candidate in deduped[:10])
-    raise RuntimeError(f"未找到发布仓库。已检查常见位置: {displayed}。请通过 -RepoPath 指定仓库根目录。")
+    if not configured_publish_repo_paths():
+        raise RuntimeError("发布配置文件未声明 repoPath/repoPaths，禁止通过发布 skill 自动查找项目。")
+    displayed = ", ".join(to_home_relative(candidate) for candidate in configured_publish_repo_paths())
+    raise RuntimeError(f"发布配置声明的仓库不可用: {displayed}。请修正本机发布配置。")
 
 
 def publish_state_directory(create_default: bool = False) -> Path | None:
@@ -280,6 +316,37 @@ def run_git(repo_path: Path, *arguments: str) -> str:
     if process.returncode != 0:
         raise RuntimeError((process.stdout + process.stderr).strip())
     return process.stdout.strip()
+
+
+def git_root(path: Path) -> Path | None:
+    process = subprocess.run(
+        ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if process.returncode != 0:
+        return None
+    return Path(process.stdout.strip()).resolve()
+
+
+def git_changed_files(repo_path: Path, base_ref: str, head_ref: str) -> list[str]:
+    output = run_git(repo_path, "diff", "--name-only", f"{base_ref}..{head_ref}")
+    return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def ensure_repo_matches_cwd(repo_path: Path, requested_path: str | None) -> None:
+    if requested_path:
+        return
+
+    cwd_repo = git_root(Path.cwd())
+    if not cwd_repo or cwd_repo == repo_path:
+        return
+
+    raise RuntimeError(
+        f"当前目录所在仓库 {to_home_relative(cwd_repo)} 与发布仓库 {to_home_relative(repo_path)} 不一致。"
+        "请在目标仓库目录执行，或显式传入 -RepoPath。"
+    )
 
 
 def json_request(
@@ -412,6 +479,16 @@ def gitlab_latest_release_tag(connection: GitLabConnection, release_pattern: re.
     return {"latestTag": latest["name"], "latestTagCommit": latest["commit"], "tagCount": len(catalog)}
 
 
+def gitlab_previous_release_tag(connection: GitLabConnection, current_tag: str, release_pattern: re.Pattern[str]) -> dict[str, str] | None:
+    previous: dict[str, str] | None = None
+    for tag in gitlab_release_tag_catalog(connection, release_pattern):
+        if compare_tag_version(tag["name"], current_tag) >= 0:
+            continue
+        if previous is None or compare_tag_version(tag["name"], previous["name"]) > 0:
+            previous = tag
+    return previous
+
+
 def gitlab_create_tag(connection: GitLabConnection, tag_name: str, ref: str, message: str) -> dict[str, str]:
     try:
         response = gitlab_request(
@@ -486,9 +563,47 @@ def gitlab_pipeline_jobs(connection: GitLabConnection, pipeline_id: str) -> list
 def selected_argocd_apps(args: argparse.Namespace) -> list[str]:
     if getattr(args, "apps", None):
         return sorted({a.strip() for item in args.apps for a in item.split(",") if a.strip()})
+    resolved_apps = getattr(args, "resolved_apps", None)
+    if resolved_apps:
+        return list(resolved_apps)
     if args.scope == DEFAULT_SCOPE:
         return list(DEFAULT_DEFAULT_APPS)
     return []
+
+
+def normalize_repo_relative_path(path: str) -> str:
+    return path.replace("\\", "/").lstrip("./")
+
+
+def configured_app_path_rules() -> dict[str, list[str]]:
+    raw_rules = PUBLISH_CONFIG.get("appPathRules") or PUBLISH_CONFIG.get("appsByChangedPath") or {}
+    if not isinstance(raw_rules, dict):
+        return {}
+
+    rules: dict[str, list[str]] = {}
+    for app_name, raw_prefixes in raw_rules.items():
+        if isinstance(raw_prefixes, str):
+            prefixes = [raw_prefixes]
+        elif isinstance(raw_prefixes, list):
+            prefixes = [str(item) for item in raw_prefixes if str(item).strip()]
+        else:
+            continue
+        normalized = [normalize_repo_relative_path(prefix.strip()) for prefix in prefixes if prefix.strip()]
+        if normalized:
+            rules[str(app_name)] = normalized
+    return rules
+
+
+def apps_for_changed_files(changed_files: list[str], app_path_rules: dict[str, list[str]]) -> list[str]:
+    matched_apps: set[str] = set()
+    normalized_files = [normalize_repo_relative_path(path) for path in changed_files]
+    for app_name, prefixes in app_path_rules.items():
+        normalized_prefixes = [normalize_repo_relative_path(prefix) for prefix in prefixes]
+        for changed_file in normalized_files:
+            if any(changed_file.startswith(prefix) for prefix in normalized_prefixes):
+                matched_apps.add(app_name)
+                break
+    return sorted(matched_apps)
 
 
 def gitlab_gate_jobs_for_apps(app_names: list[str]) -> tuple[list[str], str]:
@@ -690,6 +805,7 @@ def next_tag(tag: str) -> str:
 
 def resolve_publish_plan(args: argparse.Namespace) -> dict[str, Any]:
     repo_path = resolve_repo_path(args.repo_path or PUBLISH_CONFIG.get("repoPath"))
+    ensure_repo_matches_cwd(repo_path, args.repo_path)
     connection = gitlab_connection_info(repo_path, args)
     source_commit = run_git(repo_path, "rev-parse", "HEAD")
     commit_subject = run_git(repo_path, "log", "-1", "--pretty=%s")
@@ -704,6 +820,16 @@ def resolve_publish_plan(args: argparse.Namespace) -> dict[str, Any]:
     should_create = latest_tag_commit != source_commit
     effective_tag = next_release_tag if should_create else latest_tag
     tag_action = "create" if should_create else "reuse-latest"
+    previous_tag = gitlab_previous_release_tag(connection, latest_tag, release_pattern)
+    change_base_ref = latest_tag if should_create else (previous_tag or {}).get("name", latest_tag)
+    changed_files = git_changed_files(repo_path, change_base_ref, source_commit) if change_base_ref else []
+    changed_apps = apps_for_changed_files(changed_files, configured_app_path_rules())
+    target_apps = changed_apps if args.scope == DEFAULT_SCOPE and changed_apps else (DEFAULT_DEFAULT_APPS if args.scope == DEFAULT_SCOPE else [])
+    app_selection_rule = (
+        f"按变更文件映射选择应用，基准 tag={change_base_ref}"
+        if args.scope == DEFAULT_SCOPE and changed_apps
+        else ("变更文件未匹配 appPathRules，回退 local config 中的 defaultApps" if args.scope == DEFAULT_SCOPE else "执行阶段从 Argo CD API 按 allAppsNameFilter 筛选全部应用")
+    )
     reason = (
         f"远端最新 tag {latest_tag} 未指向当前提交 {source_commit}，需要创建 {next_release_tag}"
         if should_create
@@ -726,8 +852,10 @@ def resolve_publish_plan(args: argparse.Namespace) -> dict[str, Any]:
         "sourceCommit": source_commit,
         "tagDescription": tag_description,
         "lastCommit": {"sha": source_commit, "subject": commit_subject, "message": tag_description},
-        "targetApps": DEFAULT_DEFAULT_APPS if args.scope == DEFAULT_SCOPE else [],
-        "appSelectionRule": "发布 local config 中的 defaultApps" if args.scope == DEFAULT_SCOPE else "执行阶段从 Argo CD API 按 allAppsNameFilter 筛选全部应用",
+        "changeBaseTag": change_base_ref,
+        "changedFiles": changed_files,
+        "targetApps": target_apps,
+        "appSelectionRule": app_selection_rule,
         "urls": {
             "gitlabTags": f"{connection.base_url}/-/tags",
             "argocdApplications": f"{DEFAULT_BASE_URL}/applications",
@@ -1063,10 +1191,8 @@ def argocd_publish(args: argparse.Namespace, target_tag: str, *, deadline: datet
     started_at = utc_now()
     session = get_argocd_access_token(args)
     token = session["token"]
-    if args.apps:
-        resolved_apps = sorted({a.strip() for item in args.apps for a in item.split(",") if a.strip()})
-    elif args.scope == DEFAULT_SCOPE:
-        resolved_apps = list(DEFAULT_DEFAULT_APPS)
+    if args.scope == DEFAULT_SCOPE or args.apps:
+        resolved_apps = selected_argocd_apps(args)
     else:
         name_filter = DEFAULT_ALL_APPS_NAME_FILTER
         resolved_apps = sorted(
@@ -1219,6 +1345,8 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
     resolve_args = argparse.Namespace(**vars(args))
     plan = resolve_publish_plan(resolve_args)
     connection: GitLabConnection = plan.pop("_connection")
+    if not getattr(args, "apps", None) and args.scope == DEFAULT_SCOPE:
+        args.resolved_apps = list(plan["targetApps"])
     state_dir = publish_state_directory(create_default=True)
     assert state_dir is not None
     lock_path = state_file_path(state_dir, LOCK_FILE_NAME, LEGACY_LOCK_FILE_NAME)
@@ -1334,6 +1462,10 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                     "effectiveTag",
                     "sourceCommit",
                     "tagDescription",
+                    "changeBaseTag",
+                    "changedFiles",
+                    "targetApps",
+                    "appSelectionRule",
                 ]
             },
             "gitlab": {

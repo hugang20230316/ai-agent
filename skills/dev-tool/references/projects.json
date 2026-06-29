@@ -1,0 +1,36 @@
+{
+  "stateRoot": "~/.local/state/dev-tool",
+  "projects": {
+    "sample-dotnet-app": {
+      "name": "sample-dotnet-app",
+      "root": "~/Projects/sample-dotnet-app",
+      "solution": "SampleApp.sln",
+      "defaultService": "api",
+      "sdk": {
+        "globalJson": "global.json"
+      },
+      "services": {
+        "api": {
+          "name": "SampleApp.Api",
+          "project": "src/SampleApp.Api/SampleApp.Api.csproj",
+          "port": 5000,
+          "urls": "http://0.0.0.0:5000",
+          "environment": {
+            "ASPNETCORE_ENVIRONMENT": "Development"
+          }
+        },
+        "apphost": {
+          "name": "SampleApp.AppHost",
+          "project": "src/SampleApp.AppHost/SampleApp.AppHost.csproj",
+          "port": 15000,
+          "profile": "http",
+          "environment": {
+            "ASPNETCORE_ENVIRONMENT": "Development",
+            "DOTNET_ENVIRONMENT": "Development",
+            "ASPIRE_ALLOW_UNSECURED_TRANSPORT": "true"
+          }
+        }
+      }
+    }
+  }
+}

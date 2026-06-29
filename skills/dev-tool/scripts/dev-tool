@@ -1,0 +1,955 @@
+#!/usr/bin/env python3
+"""Local development CLI for configured .NET projects."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shlex
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+
+SCRIPT_PATH = Path(__file__).resolve()
+SKILL_ROOT = SCRIPT_PATH.parents[1]
+PUBLIC_CONFIG_PATH = SKILL_ROOT / "references" / "projects.json"
+PRIVATE_CONFIG_PATH = Path.home() / ".codex" / "local" / "dev-tool.projects.json"
+CONFIG_ENV_VAR = "DEV_TOOL_CONFIG_PATH"
+DEFAULT_TIMEOUT_SECONDS = 120
+DEFAULT_STARTUP_TIMEOUT_SECONDS = 30
+STARTUP_POLL_SECONDS = 1
+STARTUP_PROGRESS_SECONDS = 5
+LOCAL_BUILD_ARGUMENTS = [
+    "/m:1",
+    "/nodeReuse:false",
+    "/p:UseSharedCompilation=false",
+    "/p:RunAnalyzers=false",
+    "/p:GenerateDocumentationFile=false",
+]
+BUILD_PROCESS_KEYWORDS = ("dotnet", "MSBuild", "VBCSCompiler", "NuGet", "Roslyn")
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+
+
+class DevToolError(Exception):
+    """Raised for user-facing command failures."""
+
+
+def project_config(config: dict[str, Any], project: str) -> dict[str, Any]:
+    projects = config.get("projects", {})
+    if project not in projects:
+        raise DevToolError(f"Unknown project: {project}. Run `dev-tool list`.")
+    return projects[project]
+
+
+def service_config(project: dict[str, Any], service: str | None) -> tuple[str, dict[str, Any]]:
+    services = project.get("services", {})
+    selected = service or project.get("defaultService")
+    if not selected:
+        raise DevToolError(f"Project {project['name']} has no default service.")
+    if selected not in services:
+        available = ", ".join(sorted(services))
+        raise DevToolError(f"Unknown service: {selected}. Available: {available}")
+    return selected, services[selected]
+
+
+def run_command(
+    command: list[str],
+    cwd: Path,
+    env: dict[str, str] | None = None,
+    timeout_seconds: int | None = None,
+) -> int:
+    printable = " ".join(shlex.quote(part) for part in command)
+    print(f"[cmd] {printable}")
+    merged_env = os.environ.copy()
+    merged_env["PWD"] = str(cwd)
+    if env:
+        merged_env.update(env)
+    command_timeout = timeout_seconds or int(merged_env.get("DEV_TOOL_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS)))
+    try:
+        started_at = time.monotonic()
+        process = subprocess.Popen(
+            command,
+            cwd=str(cwd),
+            env=merged_env,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        exit_code = process.wait(timeout=command_timeout)
+        elapsed = time.monotonic() - started_at
+        print(f"[done] exit={exit_code} elapsed={elapsed:.2f}s")
+        return exit_code
+    except subprocess.TimeoutExpired:
+        print(f"[timeout] command exceeded {command_timeout}s")
+        safe_print_build_diagnostics(cwd)
+        stop_command_process(process, cwd)
+        return 124
+    except KeyboardInterrupt:
+        print("[interrupt] stopping command process group")
+        stop_command_process(process, cwd)
+        raise
+
+
+def stop_command_process(process: subprocess.Popen[bytes], cwd: Path) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+        process.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=3)
+        except (ProcessLookupError, PermissionError, subprocess.TimeoutExpired):
+            pass
+    except (ProcessLookupError, PermissionError):
+        pass
+    shutdown_build_servers(cwd)
+
+
+def safe_print_build_diagnostics(cwd: Path) -> None:
+    try:
+        print_build_diagnostics(cwd)
+    except Exception as error:
+        print(f"[diagnose] failed to collect build diagnostics: {error}")
+
+
+def print_build_diagnostics(cwd: Path) -> None:
+    print("[diagnose] active dotnet/MSBuild/NuGet processes:")
+    try:
+        ps_result = subprocess.run(
+            ["ps", "aux"],
+            cwd=str(cwd),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            timeout=5,
+        )
+        lines = ps_result.stdout.splitlines()
+        if lines:
+            print(lines[0])
+        matched = [
+            line
+            for line in lines[1:]
+            if any(keyword.lower() in line.lower() for keyword in BUILD_PROCESS_KEYWORDS)
+        ]
+        print("\n".join(matched[:40]) if matched else "[diagnose] no matching build processes found")
+    except (subprocess.SubprocessError, OSError) as error:
+        print(f"[diagnose] failed to list build processes: {error}")
+
+    print("[diagnose] NuGet sources:")
+    try:
+        sources_result = subprocess.run(
+            ["dotnet", "nuget", "list", "source"],
+            cwd=str(cwd),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            timeout=10,
+        )
+        print(sources_result.stdout.strip() or "[diagnose] no NuGet source output")
+    except (subprocess.SubprocessError, OSError) as error:
+        print(f"[diagnose] failed to list NuGet sources: {error}")
+
+
+def shutdown_build_servers(cwd: Path) -> None:
+    print("[diagnose] shutting down dotnet build servers after timeout")
+    try:
+        result = subprocess.run(
+            ["dotnet", "build-server", "shutdown"],
+            cwd=str(cwd),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            timeout=15,
+        )
+        output = result.stdout.strip()
+        if output:
+            print(output)
+        print(f"[diagnose] build-server shutdown exit={result.returncode}")
+    except (subprocess.SubprocessError, OSError) as error:
+        print(f"[diagnose] build-server shutdown failed: {error}")
+
+
+def print_git_freshness(root: Path) -> None:
+    if not (root / ".git").exists():
+        print("[git] no .git directory")
+        return
+
+    branch_result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        cwd=str(root),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+    )
+    status_result = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=str(root),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+    )
+    upstream_result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        cwd=str(root),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+    )
+
+    branch = branch_result.stdout.strip()
+    status = status_result.stdout.strip()
+    upstream = upstream_result.stdout.strip()
+
+    branch_text = branch if branch_result.returncode == 0 and branch else "unknown"
+    dirty_text = "clean" if status_result.returncode == 0 and not status else "has local changes"
+    print(f"[git] branch={branch_text} workspace={dirty_text}")
+
+    if status:
+        print("[git] local changes:")
+        print(status)
+
+    if upstream_result.returncode != 0 or not upstream:
+        print("[git] upstream=not configured")
+        return
+
+    counts_result = subprocess.run(
+        ["git", "rev-list", "--left-right", "--count", f"HEAD...{upstream}"],
+        cwd=str(root),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+    )
+    counts = counts_result.stdout.strip()
+    if counts_result.returncode == 0 and counts:
+        ahead, behind = counts.split()
+        print(f"[git] upstream={upstream} ahead={ahead} behind={behind}")
+        if behind != "0":
+            print("[git] local branch is behind upstream; dev-tool does not auto-pull")
+
+
+def is_pid_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def is_port_listening(port: int | None) -> bool:
+    if not port:
+        return False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.5)
+        return sock.connect_ex(("127.0.0.1", int(port))) == 0
+
+
+def listener_pids(port: int | None) -> list[int]:
+    if not port or not shutil.which("lsof"):
+        return []
+    result = subprocess.run(
+        ["lsof", "-nP", f"-iTCP:{int(port)}", "-sTCP:LISTEN", "-t"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        return []
+    pids: list[int] = []
+    for line in result.stdout.splitlines():
+        try:
+            pids.append(int(line.strip()))
+        except ValueError:
+            continue
+    return pids
+
+
+def terminate_process_group(pid: int) -> None:
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            return
+    for _ in range(12):
+        if not is_pid_running(pid):
+            return
+        time.sleep(0.25)
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            return
+
+
+def terminate_port_listeners(port: int | None) -> bool:
+    stopped = False
+    for pid in listener_pids(port):
+        print(f"[stop] stopping listener pid={pid} port={port}")
+        terminate_process_group(pid)
+        stopped = True
+    return stopped
+
+
+def watch_process_pids(target: Path) -> list[int]:
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", f"dotnet watch.*{target}"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            timeout=5,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return []
+    pids: list[int] = []
+    current_pid = os.getpid()
+    for line in result.stdout.splitlines():
+        try:
+            pid = int(line.strip())
+        except ValueError:
+            continue
+        if pid != current_pid:
+            pids.append(pid)
+    return pids
+
+
+def terminate_watch_processes(target: Path) -> bool:
+    stopped = False
+    for pid in watch_process_pids(target):
+        if not is_pid_running(pid):
+            continue
+        print(f"[stop] stopping watch pid={pid}")
+        terminate_process_group(pid)
+        stopped = True
+    return stopped
+
+
+def print_log_tail(log_file: Path, lines: int = 80) -> None:
+    if not log_file.exists():
+        print(f"[logs] no log file: {log_file}")
+        return
+    content = log_file.read_text(encoding="utf-8", errors="replace").splitlines()
+    if not content:
+        print(f"[logs] log file is empty: {log_file}")
+        return
+    print(f"[logs] last {min(lines, len(content))} lines:")
+    print("\n".join(content[-lines:]))
+
+
+def startup_timeout_seconds() -> int:
+    return int(os.environ.get("DEV_TOOL_STARTUP_TIMEOUT_SECONDS", str(DEFAULT_STARTUP_TIMEOUT_SECONDS)))
+
+
+def wait_for_startup(label: str, process: subprocess.Popen[bytes], port: int | None, log_file: Path) -> bool:
+    deadline = time.monotonic() + startup_timeout_seconds()
+    next_progress = time.monotonic()
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            print(f"[{label}] process exited during startup exit={process.returncode}; see {log_file}")
+            print_log_tail(log_file)
+            return False
+        if not port or is_port_listening(port):
+            print(f"[{label}] started pid={process.pid} port={port or '-'} listening={bool(port)}")
+            return True
+        now = time.monotonic()
+        if now >= next_progress:
+            remaining = max(0, int(deadline - now))
+            print(f"[{label}] waiting for port {port} to listen; remaining={remaining}s")
+            next_progress = now + STARTUP_PROGRESS_SECONDS
+        time.sleep(STARTUP_POLL_SECONDS)
+
+    print(f"[{label}] startup timeout: port {port} did not listen within {startup_timeout_seconds()}s")
+    print_log_tail(log_file)
+    terminate_process_group(process.pid)
+    return False
+
+
+def build_target(
+    root: Path,
+    target: Path,
+    explicit_restore: bool,
+    no_restore: bool,
+    stable: bool,
+    timeout_seconds: int | None,
+) -> int:
+    obj_dir = target.parent / "obj"
+    assets_exist = any(obj_dir.rglob("project.assets.json"))
+    if explicit_restore:
+        print("[restore] dotnet restore")
+        restore_code = run_command(["dotnet", "restore", str(target)], root, timeout_seconds=timeout_seconds)
+        if restore_code != 0:
+            return restore_code
+    command = [
+        "dotnet",
+        "build",
+        str(target),
+        "--configuration",
+        "Debug",
+        "--verbosity",
+        "minimal",
+    ]
+    if explicit_restore or no_restore:
+        command.append("--no-restore")
+    if stable:
+        print("[build-mode] stable: serialized isolated build, no analyzers, no XML docs, build servers disabled")
+        command.extend(LOCAL_BUILD_ARGUMENTS)
+        command.append("--disable-build-servers")
+    else:
+        if explicit_restore:
+            restore_text = "explicit restore + no-restore build"
+        elif no_restore:
+            restore_text = "no-restore build"
+        else:
+            restore_text = "implicit restore"
+        print(f"[build-mode] native-aligned: {restore_text}")
+    if no_restore and not assets_exist:
+        print("[restore] warning: assets not found; native build may fail because --no-restore was requested")
+    exit_code = run_command(command, root, timeout_seconds=timeout_seconds)
+    if exit_code != 124 or stable:
+        return exit_code
+    if not assets_exist:
+        print("[fallback] skipped stable no-restore build because project.assets.json was not found")
+        return exit_code
+
+    print("[fallback] native build timed out; retrying stable no-restore build with existing assets")
+    fallback_command = [
+        "dotnet",
+        "build",
+        str(target),
+        "--configuration",
+        "Debug",
+        "--verbosity",
+        "minimal",
+        "--no-restore",
+    ]
+    fallback_command.extend(LOCAL_BUILD_ARGUMENTS)
+    fallback_command.append("--disable-build-servers")
+    return run_command(fallback_command, root, timeout_seconds=timeout_seconds)
+
+
+def command_list(config: dict[str, Any]) -> int:
+    print("Configured projects:")
+    for key, project in sorted(config["projects"].items()):
+        services = ", ".join(sorted(project.get("services", {})))
+        print(f"- {key}: {project['root']} ({services})")
+    return 0
+
+
+def command_status(config: dict[str, Any], project_name: str | None) -> int:
+    projects = config["projects"]
+    selected = [project_name] if project_name else sorted(projects)
+    for name in selected:
+        project = project_config(config, name)
+        root = Path(project["root"]).expanduser().resolve()
+        state_root = Path(config["stateRoot"]).expanduser() / project["name"]
+        print(f"\n{name}: {root}")
+        for service_name, service in sorted(project["services"].items()):
+            pid_file = state_root / "pids" / f"{service_name}.pid"
+            try:
+                pid = int(pid_file.read_text(encoding="utf-8").strip())
+            except (FileNotFoundError, ValueError):
+                pid = None
+            port = service.get("port")
+            port_listeners = listener_pids(int(port) if port else None)
+            listener_pid = port_listeners[0] if port_listeners else None
+            running = False
+            if pid:
+                running = is_pid_running(pid)
+            if listener_pid:
+                if listener_pid != pid and not running:
+                    pid_file.parent.mkdir(parents=True, exist_ok=True)
+                    pid_file.write_text(str(listener_pid), encoding="utf-8")
+                running = True
+            listening = bool(listener_pid) or (is_port_listening(int(port)) if port else False)
+            status = "running" if running and (not port or listening) else "stopped"
+            if running and port and not listening:
+                status = "unhealthy"
+            listener_text = f" listener={listener_pid}" if listener_pid and listener_pid != pid else ""
+            print(f"  {service_name:<12} {status:<8} pid={pid or '-'} port={port or '-'} listening={listening}{listener_text}")
+    return 0
+
+
+def command_build(
+    config: dict[str, Any],
+    project_name: str,
+    service_name: str | None,
+    restore: bool,
+    no_restore: bool,
+    stable: bool,
+    timeout_seconds: int | None,
+) -> int:
+    project = project_config(config, project_name)
+    root = Path(project["root"]).expanduser().resolve()
+    print_git_freshness(root)
+
+    if service_name:
+        selected, service = service_config(project, service_name)
+        target = root / service["project"]
+        print(f"[build] {project_name}/{selected} -> {target}")
+    else:
+        target = root / project["solution"]
+        print(f"[build] {project_name} solution -> {target}")
+
+    return build_target(root, target, restore, no_restore, stable, timeout_seconds)
+
+
+def command_test(
+    config: dict[str, Any],
+    project_name: str,
+    service_name: str | None,
+    restore: bool,
+    no_restore: bool,
+    stable: bool,
+    timeout_seconds: int | None,
+) -> int:
+    project = project_config(config, project_name)
+    root = Path(project["root"]).expanduser().resolve()
+    print_git_freshness(root)
+
+    target = root / project["solution"]
+    if service_name:
+        _, service = service_config(project, service_name)
+        target = root / service["project"]
+
+    obj_dir = target.parent / "obj"
+    assets_exist = any(obj_dir.rglob("project.assets.json"))
+    if restore:
+        print("[restore] dotnet restore")
+        restore_code = run_command(["dotnet", "restore", str(target)], root, timeout_seconds=timeout_seconds)
+        if restore_code != 0:
+            return restore_code
+
+    command = [
+        "dotnet",
+        "test",
+        str(target),
+        "--configuration",
+        "Debug",
+    ]
+    if restore or no_restore:
+        command.append("--no-restore")
+    if stable:
+        print("[test-mode] stable: serialized isolated build, no analyzers, no XML docs, build servers disabled")
+        command.extend(LOCAL_BUILD_ARGUMENTS)
+        command.append("--disable-build-servers")
+    else:
+        if restore:
+            restore_text = "explicit restore + no-restore test"
+        elif no_restore:
+            restore_text = "no-restore test"
+        else:
+            restore_text = "implicit restore"
+        print(f"[test-mode] native-aligned: {restore_text}")
+    if no_restore and not assets_exist:
+        print("[restore] warning: assets not found; native test may fail because --no-restore was requested")
+    return run_command(command, root, timeout_seconds=timeout_seconds)
+
+
+def command_diagnose_build(
+    config: dict[str, Any],
+    project_name: str,
+    service_name: str | None,
+    timeout_seconds: int | None,
+) -> int:
+    project = project_config(config, project_name)
+    root = Path(project["root"]).expanduser().resolve()
+    print_git_freshness(root)
+
+    if service_name:
+        selected, service = service_config(project, service_name)
+        target = root / service["project"]
+        print(f"[diagnose-build] {project_name}/{selected} -> {target}")
+    else:
+        target = root / project["solution"]
+        print(f"[diagnose-build] {project_name} solution -> {target}")
+
+    print("[diagnose-build] phase=restore")
+    restore_code = run_command(["dotnet", "restore", str(target), "--verbosity", "minimal"], root, timeout_seconds=timeout_seconds)
+    if restore_code != 0:
+        print(f"[diagnose-build] restore failed exit={restore_code}")
+        return restore_code
+
+    print("[diagnose-build] phase=native build --no-restore")
+    native_code = run_command(
+        [
+            "dotnet",
+            "build",
+            str(target),
+            "--configuration",
+            "Debug",
+            "--verbosity",
+            "minimal",
+            "--no-restore",
+        ],
+        root,
+        timeout_seconds=timeout_seconds,
+    )
+    if native_code != 0:
+        print(f"[diagnose-build] native build failed exit={native_code}")
+        return native_code
+
+    print("[diagnose-build] phase=stable build --no-restore")
+    stable_command = [
+        "dotnet",
+        "build",
+        str(target),
+        "--configuration",
+        "Debug",
+        "--verbosity",
+        "minimal",
+        "--no-restore",
+    ]
+    stable_command.extend(LOCAL_BUILD_ARGUMENTS)
+    stable_command.append("--disable-build-servers")
+    stable_code = run_command(stable_command, root, timeout_seconds=timeout_seconds)
+    if stable_code != 0:
+        print(f"[diagnose-build] stable build failed exit={stable_code}")
+        return stable_code
+
+    print("[diagnose-build] all phases completed")
+    return 0
+
+
+def command_run(
+    config: dict[str, Any],
+    project_name: str,
+    service_name: str | None,
+    restore: bool,
+    no_restore: bool,
+    stable: bool,
+    timeout_seconds: int | None,
+) -> int:
+    project = project_config(config, project_name)
+    selected, service = service_config(project, service_name)
+    root = Path(project["root"]).expanduser().resolve()
+    state_root = Path(config["stateRoot"]).expanduser() / project["name"]
+    for child in ("logs", "pids", "metadata"):
+        (state_root / child).mkdir(parents=True, exist_ok=True)
+    print_git_freshness(root)
+
+    port = service.get("port")
+    target = root / service["project"]
+    pid_file = state_root / "pids" / f"{selected}.pid"
+    try:
+        existing_pid = int(pid_file.read_text(encoding="utf-8").strip())
+    except (FileNotFoundError, ValueError):
+        existing_pid = None
+    if existing_pid:
+        if is_pid_running(existing_pid):
+            existing_listening = is_port_listening(int(port)) if port else True
+            if existing_listening:
+                print(f"[run] {project_name}/{selected} already running pid={existing_pid}")
+                return 0
+            print(f"[run] tracked process is unhealthy pid={existing_pid} port={port}; restarting")
+            terminate_process_group(existing_pid)
+            pid_file.unlink(missing_ok=True)
+        else:
+            pid_file.unlink(missing_ok=True)
+
+    port_listeners = listener_pids(int(port) if port else None)
+    listener_pid = port_listeners[0] if port_listeners else None
+    if listener_pid:
+        pid_file.write_text(str(listener_pid), encoding="utf-8")
+        print(f"[run] {project_name}/{selected} already listening pid={listener_pid} port={port}")
+        return 0
+
+    build_code = build_target(root, target, restore, no_restore, stable, timeout_seconds)
+    if build_code != 0:
+        return build_code
+
+    log_file = state_root / "logs" / f"{selected}.log"
+    metadata_file = state_root / "metadata" / f"{selected}.json"
+
+    env = os.environ.copy()
+    env["PWD"] = str(root)
+    env.update(service.get("environment", {}))
+    command = ["dotnet", "run", "--project", str(target), "--configuration", "Debug", "--no-build"]
+    if service.get("profile"):
+        command.extend(["--launch-profile", service["profile"]])
+    elif service.get("urls"):
+        command.extend(["--urls", service["urls"]])
+
+    print(f"[run] starting {project_name}/{selected}")
+    print(f"[run] log={log_file}")
+    with log_file.open("ab") as log_handle:
+        process = subprocess.Popen(
+            command,
+            cwd=str(root),
+            env=env,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+    )
+
+    pid_file.write_text(str(process.pid), encoding="utf-8")
+    metadata_file.write_text(
+        json.dumps({"project": project_name, "service": selected, "command": command, "port": port}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    if wait_for_startup("run", process, int(port) if port else None, log_file):
+        port_listeners = listener_pids(int(port) if port else None)
+        listener_pid = port_listeners[0] if port_listeners else None
+        if listener_pid and listener_pid != process.pid:
+            pid_file.write_text(str(listener_pid), encoding="utf-8")
+        return 0
+
+    pid_file.unlink(missing_ok=True)
+    return 1
+
+
+def command_watch(config: dict[str, Any], project_name: str, service_name: str | None) -> int:
+    project = project_config(config, project_name)
+    selected, service = service_config(project, service_name)
+    root = Path(project["root"]).expanduser().resolve()
+    state_root = Path(config["stateRoot"]).expanduser() / project["name"]
+    for child in ("logs", "pids", "metadata"):
+        (state_root / child).mkdir(parents=True, exist_ok=True)
+    print_git_freshness(root)
+
+    stop_code = command_stop(config, project_name, selected)
+    if stop_code != 0:
+        return stop_code
+
+    port = service.get("port")
+    if terminate_port_listeners(int(port) if port else None):
+        print("[watch] stopped existing port listener")
+
+    target = root / service["project"]
+    log_file = state_root / "logs" / f"{selected}.log"
+    pid_file = state_root / "pids" / f"{selected}.pid"
+    metadata_file = state_root / "metadata" / f"{selected}.json"
+
+    env = os.environ.copy()
+    env["PWD"] = str(root)
+    env["DOTNET_WATCH_SUPPRESS_EMOJIS"] = env.get("DOTNET_WATCH_SUPPRESS_EMOJIS", "1")
+    env.update(service.get("environment", {}))
+    command = [
+        "dotnet",
+        "watch",
+        "--project",
+        str(target),
+        "--non-interactive",
+        "run",
+        "--configuration",
+        "Debug",
+    ]
+    if service.get("profile"):
+        command.extend(["--launch-profile", service["profile"]])
+    elif service.get("urls"):
+        command.extend(["--urls", service["urls"]])
+
+    print(f"[watch] starting {project_name}/{selected}")
+    print(f"[watch] log={log_file}")
+    with log_file.open("ab") as log_handle:
+        process = subprocess.Popen(
+            command,
+            cwd=str(root),
+            env=env,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+    pid_file.write_text(str(process.pid), encoding="utf-8")
+    metadata_file.write_text(
+        json.dumps({"project": project_name, "service": selected, "command": command, "mode": "watch", "port": port}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    if wait_for_startup("watch", process, int(port) if port else None, log_file):
+        return 0
+
+    pid_file.unlink(missing_ok=True)
+    return 1
+
+
+def command_stop(config: dict[str, Any], project_name: str, service_name: str | None) -> int:
+    project = project_config(config, project_name)
+    selected, service = service_config(project, service_name)
+    port = service.get("port")
+    root = Path(project["root"]).expanduser().resolve()
+    target = root / service["project"]
+    state_root = Path(config["stateRoot"]).expanduser() / project["name"]
+    pid_file = state_root / "pids" / f"{selected}.pid"
+    try:
+        pid = int(pid_file.read_text(encoding="utf-8").strip())
+    except (FileNotFoundError, ValueError):
+        pid = None
+    if not pid:
+        print(f"[stop] {project_name}/{selected} is not tracked as running")
+        stopped_watch = terminate_watch_processes(target)
+        stopped_listener = terminate_port_listeners(int(port) if port else None)
+        if stopped_watch or stopped_listener:
+            print("[stop] stopped")
+        return 0
+    if not is_pid_running(pid):
+        print(f"[stop] stale pid file removed pid={pid}")
+        pid_file.unlink(missing_ok=True)
+        stopped_watch = terminate_watch_processes(target)
+        stopped_listener = terminate_port_listeners(int(port) if port else None)
+        if stopped_watch or stopped_listener:
+            print("[stop] stopped")
+        return 0
+
+    print(f"[stop] stopping {project_name}/{selected} pid={pid}")
+    terminate_process_group(pid)
+    terminate_watch_processes(target)
+    terminate_port_listeners(int(port) if port else None)
+    pid_file.unlink(missing_ok=True)
+    print("[stop] stopped")
+    return 0
+
+
+def command_logs(config: dict[str, Any], project_name: str, service_name: str, lines: int) -> int:
+    project = project_config(config, project_name)
+    service_config(project, service_name)
+    state_root = Path(config["stateRoot"]).expanduser() / project["name"]
+    log_file = state_root / "logs" / f"{service_name}.log"
+    if not log_file.exists():
+        print(f"[logs] no log file: {log_file}")
+        return 1
+    tail = shutil.which("tail")
+    if tail:
+        return subprocess.run([tail, "-n", str(lines), str(log_file)]).returncode
+    content = log_file.read_text(encoding="utf-8", errors="replace").splitlines()
+    print("\n".join(content[-lines:]))
+    return 0
+
+
+def command_clean(config: dict[str, Any], project_name: str, service_name: str | None) -> int:
+    project = project_config(config, project_name)
+    root = Path(project["root"]).expanduser().resolve()
+    targets: list[Path] = []
+    if service_name:
+        _, service = service_config(project, service_name)
+        targets.append((root / service["project"]).parent)
+    else:
+        targets.extend((root / service["project"]).parent for service in project["services"].values())
+
+    for target in targets:
+        for child in ("bin", "obj"):
+            path = target / child
+            if path.exists():
+                shutil.rmtree(path)
+                print(f"[clean] removed {path}")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="dev-tool")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    subparsers.add_parser("list")
+
+    status = subparsers.add_parser("status")
+    status.add_argument("project", nargs="?")
+
+    for name in ("build", "test"):
+        command = subparsers.add_parser(name)
+        command.add_argument("project")
+        command.add_argument("service", nargs="?")
+        command.add_argument("--restore", action="store_true", help="Run dotnet restore before the command")
+        command.add_argument("--no-restore", action="store_true", help="Skip implicit restore for hot local builds")
+        command.add_argument("--stable", action="store_true", help="Accepted for compatibility; local-fast is already isolated")
+        command.add_argument("--timeout", type=int, help="Command timeout in seconds")
+
+    diagnose_build = subparsers.add_parser("diagnose-build")
+    diagnose_build.add_argument("project")
+    diagnose_build.add_argument("service", nargs="?")
+    diagnose_build.add_argument("--timeout", type=int, help="Per-phase timeout in seconds")
+
+    for name in ("run", "start", "restart"):
+        command = subparsers.add_parser(name)
+        command.add_argument("project")
+        command.add_argument("service", nargs="?")
+        command.add_argument("--restore", action="store_true", help="Run dotnet restore before build")
+        command.add_argument("--no-restore", action="store_true", help="Skip implicit restore for hot local builds")
+        command.add_argument("--stable", action="store_true", help="Accepted for compatibility; local-fast is already isolated")
+        command.add_argument("--timeout", type=int, help="Build timeout in seconds")
+
+    watch = subparsers.add_parser("watch")
+    watch.add_argument("project")
+    watch.add_argument("service", nargs="?")
+
+    stop = subparsers.add_parser("stop")
+    stop.add_argument("project")
+    stop.add_argument("service", nargs="?")
+
+    logs = subparsers.add_parser("logs")
+    logs.add_argument("project")
+    logs.add_argument("service")
+    logs.add_argument("lines", nargs="?", type=int, default=80)
+
+    clean = subparsers.add_parser("clean")
+    clean.add_argument("project")
+    clean.add_argument("service", nargs="?")
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    configured_path = os.environ.get(CONFIG_ENV_VAR)
+    selected_config_path = Path(configured_path).expanduser() if configured_path else PRIVATE_CONFIG_PATH
+    if not selected_config_path.exists():
+        selected_config_path = PUBLIC_CONFIG_PATH
+    with selected_config_path.open("r", encoding="utf-8") as config_file:
+        config = json.load(config_file)
+
+    try:
+        if args.command == "list":
+            return command_list(config)
+        if args.command == "status":
+            return command_status(config, args.project)
+        if args.command == "build":
+            return command_build(config, args.project, args.service, args.restore, args.no_restore, args.stable, args.timeout)
+        if args.command == "test":
+            return command_test(config, args.project, args.service, args.restore, args.no_restore, args.stable, args.timeout)
+        if args.command == "diagnose-build":
+            return command_diagnose_build(config, args.project, args.service, args.timeout)
+        if args.command in ("run", "start"):
+            return command_run(config, args.project, args.service, args.restore, args.no_restore, args.stable, args.timeout)
+        if args.command == "restart":
+            stop_code = command_stop(config, args.project, args.service)
+            if stop_code != 0:
+                return stop_code
+            return command_run(config, args.project, args.service, args.restore, args.no_restore, args.stable, args.timeout)
+        if args.command == "watch":
+            return command_watch(config, args.project, args.service)
+        if args.command == "stop":
+            return command_stop(config, args.project, args.service)
+        if args.command == "logs":
+            return command_logs(config, args.project, args.service, args.lines)
+        if args.command == "clean":
+            return command_clean(config, args.project, args.service)
+    except DevToolError as error:
+        print(f"[error] {error}", file=sys.stderr)
+        return 1
+
+    parser.print_help()
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

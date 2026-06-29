@@ -7,14 +7,14 @@ description: "Automate a configured development release through GitLab and Argo 
 
 ## Tooling
 
-Use the single Python entry point from this skill directory:
+Use the single Python entry point from the target repository working directory, or pass `-RepoPath` explicitly:
 
 ```console
-python3 scripts/publish_gitlab_argo.py doctor
-python3 scripts/publish_gitlab_argo.py resolve-plan -Scope default -Format json
-python3 scripts/publish_gitlab_argo.py publish -Scope default -Format json
-python3 scripts/publish_gitlab_argo.py publish -Scope default -Apps <app> -Format json
-python3 scripts/publish_gitlab_argo.py publish -Scope all -Format json
+python3 <skill-dir>/scripts/publish_gitlab_argo.py doctor
+python3 <skill-dir>/scripts/publish_gitlab_argo.py resolve-plan -Scope default -Format json
+python3 <skill-dir>/scripts/publish_gitlab_argo.py publish -Scope default -Format json
+python3 <skill-dir>/scripts/publish_gitlab_argo.py publish -Scope default -Apps <app> -Format json
+python3 <skill-dir>/scripts/publish_gitlab_argo.py publish -Scope all -Format json
 ```
 
 Machine-specific API hosts, repo paths, app names, credentials, sessions, and release state must come from local config, environment variables, or explicit CLI arguments. Do not add platform-specific skill files or wrapper scripts.
@@ -23,19 +23,21 @@ The standard publish flow is pre-approved. Use the local persisted approval for 
 
 ## Shared Workflow
 
-0. Run `python3 scripts/publish_gitlab_argo.py doctor` before publishing. If credential or connectivity issues are detected (e.g., ArgoCD token expired, GitLab unreachable), resolve them before proceeding. Do not proceed to publish if doctor reports critical failures.
-1. Inspect the commits/files being published and identify the affected components before choosing apps.
-2. Resolve the requested publish scope: selected components from the change impact, explicit apps, all apps, preview only, or known-tag app update.
-3. Use default apps only as a fallback when the changed components cannot be mapped more specifically.
-4. On retry, interruption, or re-publish requests, rerun `resolve-plan` before reusing any publish result; reuse only when the current `sourceCommit`, `effectiveTag`, and target apps all match.
-5. Resolve or create the configured release tag through the GitLab API.
-6. Wait for the configured release pipeline/status gate within the end-to-end publish command budget, not by adding independent full timeouts for each stage.
-7. Update only the configured deployment image tag through Argo CD APIs.
-8. Verify the final app tag and sync/health state before reporting success or failure.
+1. Run `python3 <skill-dir>/scripts/publish_gitlab_argo.py doctor` before publishing. If credential or connectivity issues are detected (e.g., ArgoCD token expired, GitLab unreachable), resolve them before proceeding. Do not proceed to publish if doctor reports critical failures.
+2. Before `resolve-plan` or `publish`, use local publish config to confirm and state the target repository. If the cwd repository differs from the configured publish repository, switch to the single allowed readable repository, rerun `doctor`, and continue with the originally requested operation when repository checks pass and the user did not limit the request to the current repository, current changes, or current directory; run `publish` only when the user explicitly requested publishing. Otherwise stop and report the mismatch.
+3. Inspect the commits/files being published and identify the affected components before choosing apps.
+4. Resolve the requested publish scope: selected components from the change impact, explicit apps, all apps, preview only, or known-tag app update.
+5. Use default apps only as a fallback when the changed components cannot be mapped more specifically.
+6. On retry, interruption, or re-publish requests, rerun `resolve-plan` before reusing any publish result; reuse only when the current `sourceCommit`, `effectiveTag`, and target apps all match.
+7. Resolve or create the configured release tag through the GitLab API.
+8. Wait for the configured release pipeline/status gate within the end-to-end publish command budget, not by adding independent full timeouts for each stage.
+9. Update only the configured deployment image tag through Argo CD APIs.
+10. Verify the final app tag and sync/health state before reporting success or failure.
 
 ## Shared Guardrails
 
 - Keep credentials in local config, environment variables, or local encrypted state only.
+- Never publish a repository that is not explicitly listed in the local publish config; `-RepoPath` cannot override this allowlist.
 - Do not publish apps outside the configured scope.
 - Do not blindly publish the default apps when the change set points to different deployable components.
 - Preview/check mode must not create tags or sync apps.
