@@ -74,7 +74,7 @@ DEFAULT_DEFAULT_APPS = [str(item) for item in PUBLISH_CONFIG.get("defaultApps", 
 DEFAULT_ALL_APPS_NAME_FILTER = str(PUBLISH_CONFIG.get("allAppsNameFilter") or "")
 DEFAULT_RELEASE_TAG_PATTERN = re.compile(str(PUBLISH_CONFIG.get("releaseTagPattern") or r"^v0\.0\.\d+$"))
 # release 分支发布只跟随带 -release 后缀的 tag 族。
-RELEASE_BRANCH_TAG_PATTERN = re.compile(str(PUBLISH_CONFIG.get("releaseBranchTagPattern") or r"^v0\.0\.\d+-release$"))
+RELEASE_BRANCH_TAG_PATTERN = re.compile(str(PUBLISH_CONFIG.get("releaseBranchTagPattern") or r"^v0\.[0-9]+\.\d+-release$"))
 
 
 def utc_now() -> datetime:
@@ -695,7 +695,12 @@ def wait_gitlab_latest_release_jobs_passed(
                 "elapsedSeconds": elapsed_seconds_since(started_at),
             }
         time.sleep(min(poll_interval_seconds, max(seconds_until(deadline), 1)))
-    raise RuntimeError(f"GitLab job gate 在 {timeout_seconds} 秒内仍未通过")
+    suffix = ""
+    if observations:
+        last_observation = observations[-1]
+        job_text = ", ".join(f"{item['name']}={item['normalized']}" for item in last_observation.get("jobs") or [])
+        suffix = f": tag={last_observation.get('tag', '')} pipeline={last_observation.get('pipeline', '')} {job_text}"
+    raise RuntimeError(f"GitLab job gate 在 {timeout_seconds} 秒内仍未通过{suffix}")
 
 
 def wait_gitlab_latest_release_tag_passed(
