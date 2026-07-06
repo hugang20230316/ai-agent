@@ -63,7 +63,7 @@ python3 scripts/setup_links.py --tool codex --rules --print-only
 python3 scripts/setup_links.py --tool codex --rules --apply
 ```
 
-5. Expose only the maintained skills you need.
+4. Expose only the maintained skills you need.
 
 Codex and Claude can use per-skill symlinks:
 
@@ -81,7 +81,7 @@ python3 scripts/setup_links.py --tool codex --skills multi-agent-workflow,person
 
 Do not use an all-skills setup for a shared team machine.
 
-6. Add private configuration locally.
+5. Add private configuration locally.
 
 Keep private files outside Git:
 
@@ -92,6 +92,10 @@ Keep private files outside Git:
 <tool-home>/sessions/
 <tool-home>/logs/
 ```
+
+Use `skills/local-config-examples/*.example` for public placeholder shapes only. Do not copy real machine paths, internal hosts, accounts, tokens, sessions, or project-specific values into this repository.
+
+Current examples cover `bug`, `dev-tool`, `grafana`, `hg-git`, legacy `publish-dev`, `publish-gitlab-argo`, and `requirements-organizer`.
 
 Never commit tokens, cookies, browser sessions, sqlite databases, command approval history, or company project configuration.
 

@@ -1,6 +1,6 @@
 {
   "baseUrl": "https://grafana.example.com",
-  "localStateDir": "~/.grafana-skill",
+  "localStateDir": "<grafana-state-dir>",
   "browserSession": "grafana-local",
   "browserMaxOutput": 12000,
   "dashboardUid": "replace-with-dashboard-uid",

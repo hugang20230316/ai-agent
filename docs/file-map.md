@@ -15,6 +15,10 @@
   - 可同步
   - 仅包含明确托管并确认可公开同步的 skill
   - 当前知识库能力统一放在 `skills/personal-knowledge/`
+- `skills/local-config-examples/*.example`
+  - 可同步
+  - 只放本机私有配置的占位结构；不得包含真实地址、账号、路径、凭据、会话或发布状态
+  - 当前包含 `bug`、`dev-tool`、`grafana`、`hg-git`、`publish-dev`、`publish-gitlab-argo` 和 `requirements-organizer` 示例
 - `docs/agent-sync.md`
   - 可同步
   - 同步布局和安装说明，不参与规则加载

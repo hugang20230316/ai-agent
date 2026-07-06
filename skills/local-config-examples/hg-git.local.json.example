@@ -1,0 +1,12 @@
+{
+  "repos": {
+    "ai-agent": "<path-to-ai-agent-repo>",
+    "personal-private-data": "<path-to-personal-private-data-repo>",
+    "github.com/<owner>/<ai-agent-repo>": "<path-to-ai-agent-repo>",
+    "github.com/<owner>/<private-data-repo>": "<path-to-personal-private-data-repo>"
+  },
+  "env": {
+    "HG_GIT_AI_AGENT_REPO": "<path-to-ai-agent-repo>",
+    "HG_GIT_PERSONAL_PRIVATE_DATA_REPO": "<path-to-personal-private-data-repo>"
+  }
+}

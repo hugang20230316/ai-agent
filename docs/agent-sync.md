@@ -19,10 +19,14 @@
 - `markdown-rules.md`：Markdown 写作与图表规则
 - `coding-rules.md`：编码规则
 - `testing-rules.md`：测试与验证规则
+- `long-task-rules.md`：长任务、中断恢复和上下文压力规则
 - `skill-rules.md`：skill 触发、加载和修改边界规则
+- `evidence-output-rules.md`：命令、接口、日志和数据证据输出规则
 - `openclaw-rules.md`：OpenClaw 排障规则
+- `hermes-rules.md`：Hermes 排障规则
 - `project-governance.md`：同步边界与治理规则
 - `mcp-rules.md`：MCP 调用与故障处理规则
+- `research-rules.md`：资料调研、推荐、选型和对比规则
 - `requirements-and-prototype.md`：需求与原型规则
 - `personal-knowledge-rules.md`：Obsidian 与个人知识库沉淀规则
 
@@ -66,6 +70,22 @@
 
 说明文档可以解释为什么同步、怎么安装、哪些文件不能同步，但不能新增 Agent 行为规则。需要新增行为规则时，必须放入 `rules/*.md` 并由 `AGENTS.md` 引用。
 
+## 示例配置
+
+- 同步仓库内路径：`skills/local-config-examples/*.example`
+- 用途：给本机私有配置提供可公开的占位结构。
+- 边界：只写 `example.com`、`example.test`、`<placeholder>`、`env:VARIABLE` 和示例工程名这类占位值；真实地址、账号、路径、token、cookie、会话和发布状态只能放在本机私有配置或私有同步仓库。
+
+当前示例文件：
+
+- `bug.local.json.example`
+- `dev-tool.projects.json.example`
+- `grafana.local.json.example`
+- `hg-git.local.json.example`
+- `publish-dev.local.json.example`
+- `publish-gitlab-argo.local.json.example`
+- `requirements-organizer.local.json.example`
+
 ## Skill 同步
 
 共享或明确托管的 skill 放在本仓库的 `skills/<skill-name>/` 下。每个工具只软链接或配置引用明确托管的 skill 目录。
@@ -74,14 +94,18 @@
 
 当前托管 skill 清单：
 
+- `aliyun-oss`
 - `bug`
+- `dev-tool`
 - `grafana`
 - `hg-git`
 - `multi-agent-workflow`
 - `personal-knowledge`
 - `publish-gitlab-argo`
 - `requirements-organizer`
+- `review-coding`
 - `rule-fix`
+- `timer`
 - `tutorial-writer`
 
 Codex 和 Claude 通过逐个 skill 目录软链接加载这些 skill。Hermes 通过 `skills.external_dirs` 逐个列出这些目录。OpenClaw 通过 `skills.load.extraDirs` 逐个列出这些目录，不使用 workspace skill 软链接。

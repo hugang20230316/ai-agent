@@ -71,23 +71,31 @@ Shared rules:
 - `rules/markdown-rules.md`: Markdown writing and diagram rules
 - `rules/coding-rules.md`: coding rules
 - `rules/testing-rules.md`: testing and verification rules
+- `rules/long-task-rules.md`: long task, interruption, and context pressure rules
 - `rules/skill-rules.md`: skill trigger and loading rules
+- `rules/evidence-output-rules.md`: command, API, log, and data evidence output rules
 - `rules/openclaw-rules.md`: OpenClaw troubleshooting rules
+- `rules/hermes-rules.md`: Hermes troubleshooting rules
 - `rules/project-governance.md`: project and personal-rule governance rules
 - `rules/mcp-rules.md`: MCP selection, invocation, and failure rules
+- `rules/research-rules.md`: research, recommendation, and comparison rules
 - `rules/requirements-and-prototype.md`: requirements and prototype rules
 - `rules/personal-knowledge-rules.md`: Obsidian and personal knowledge capture rules
 
 Shared custom skills:
 
+- `skills/aliyun-oss/`
 - `skills/bug/`
+- `skills/dev-tool/`
 - `skills/grafana/`
 - `skills/hg-git/`
 - `skills/multi-agent-workflow/`
 - `skills/personal-knowledge/`
 - `skills/publish-gitlab-argo/`
 - `skills/requirements-organizer/`
+- `skills/review-coding/`
 - `skills/rule-fix/`
+- `skills/timer/`
 - `skills/tutorial-writer/`
 
 Shared scripts:
@@ -138,13 +146,28 @@ Codex and Claude can expose those shared skills through per-skill symlinks. Herm
 
 Skills are opt-in. Many maintained skills depend on company tools, monitoring, release flows, or personal repositories. New members should start with shared rules and add only the skills they actually use.
 
-Machine-specific skill configuration stays local. Shared skill scripts should read local settings from `$CODEX_SKILL_CONFIG_DIR/<skill-name>.local.json` when set, otherwise `~/.codex/local/<skill-name>.local.json`. Do not rely on project-local `.codex/local/<skill-name>.local.json` files as a second active config source.
+Machine-specific skill configuration stays local. Most shared skill scripts read local settings from `$CODEX_SKILL_CONFIG_DIR/<skill-name>.local.json` when set, otherwise `~/.codex/local/<skill-name>.local.json`; skill-specific names such as `dev-tool.projects.json` are documented in the relevant `SKILL.md`. Do not rely on project-local `.codex/local/<skill-name>.local.json` files as a second active config source.
+
+Public placeholder examples for supported local config files live in `skills/local-config-examples/`. Copy the shape only; keep real hosts, paths, accounts, tokens, sessions, and environment-specific values outside Git.
+
+Current placeholder examples:
+
+- `skills/local-config-examples/bug.local.json.example`
+- `skills/local-config-examples/dev-tool.projects.json.example`
+- `skills/local-config-examples/grafana.local.json.example`
+- `skills/local-config-examples/hg-git.local.json.example`
+- `skills/local-config-examples/publish-dev.local.json.example`
+- `skills/local-config-examples/publish-gitlab-argo.local.json.example`
+- `skills/local-config-examples/requirements-organizer.local.json.example`
 
 Cross-device notes:
 
 - `docs/agent-sync.md`: sync layout and installation notes
 - `docs/file-map.md`: file classification and migration map
 - `docs/do-not-sync.md`: files and directories that must never be synced
+- `docs/governance.md`: repository ownership and lifecycle guidance
+- `docs/onboarding.md`: new-machine setup flow
+- `docs/rule-fix-workflow.md`: rule change workflow
 - `docs/symlink-design.md`: rule and skill symlink design
 - `docs/superpowers/specs/2026-05-17-codex-obsidian-personal-log-design.md`: Codex and Obsidian personal knowledge design
 

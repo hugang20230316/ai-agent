@@ -47,11 +47,16 @@ Codex 侧的目标状态：
 ```text
 ~/.codex/rules/coding-rules.md -> <ai-agent>/rules/coding-rules.md
 ~/.codex/rules/communication-rules.md -> <ai-agent>/rules/communication-rules.md
+~/.codex/rules/evidence-output-rules.md -> <ai-agent>/rules/evidence-output-rules.md
+~/.codex/rules/hermes-rules.md -> <ai-agent>/rules/hermes-rules.md
+~/.codex/rules/long-task-rules.md -> <ai-agent>/rules/long-task-rules.md
 ~/.codex/rules/markdown-rules.md -> <ai-agent>/rules/markdown-rules.md
 ~/.codex/rules/mcp-rules.md -> <ai-agent>/rules/mcp-rules.md
 ~/.codex/rules/openclaw-rules.md -> <ai-agent>/rules/openclaw-rules.md
+~/.codex/rules/personal-knowledge-rules.md -> <ai-agent>/rules/personal-knowledge-rules.md
 ~/.codex/rules/project-governance.md -> <ai-agent>/rules/project-governance.md
 ~/.codex/rules/requirements-and-prototype.md -> <ai-agent>/rules/requirements-and-prototype.md
+~/.codex/rules/research-rules.md -> <ai-agent>/rules/research-rules.md
 ~/.codex/rules/security-and-privacy-rules.md -> <ai-agent>/rules/security-and-privacy-rules.md
 ~/.codex/rules/skill-rules.md -> <ai-agent>/rules/skill-rules.md
 ~/.codex/rules/testing-rules.md -> <ai-agent>/rules/testing-rules.md
@@ -66,39 +71,51 @@ Skill 默认不自动启用。不同成员所在公司、项目和工具链不�
 
 当前托管这些 skill：
 
+- `aliyun-oss`
 - `bug`
+- `dev-tool`
 - `grafana`
 - `hg-git`
 - `multi-agent-workflow`
 - `personal-knowledge`
 - `publish-gitlab-argo`
 - `requirements-organizer`
+- `review-coding`
 - `rule-fix`
+- `timer`
 - `tutorial-writer`
 
-后续如果要把 `brainstorming`、`writing-plans`、`verification-before-completion` 等流程类 skill 也纳入共享托管，需要先检查来源和许可，再加入托管清单。
+后续如果要把 `agent-reach`、`humanizer-zh`、`vpn`、`brainstorming`、`writing-plans`、`verification-before-completion` 等 skill 也纳入共享托管，需要先检查来源、许可、私有配置和运行态边界，再加入托管清单。
 
 目标状态：
 
 ```text
+~/.codex/skills/aliyun-oss -> <ai-agent>/skills/aliyun-oss
 ~/.codex/skills/bug -> <ai-agent>/skills/bug
+~/.codex/skills/dev-tool -> <ai-agent>/skills/dev-tool
 ~/.codex/skills/publish-gitlab-argo -> <ai-agent>/skills/publish-gitlab-argo
 ~/.codex/skills/grafana -> <ai-agent>/skills/grafana
 ~/.codex/skills/hg-git -> <ai-agent>/skills/hg-git
 ~/.codex/skills/multi-agent-workflow -> <ai-agent>/skills/multi-agent-workflow
 ~/.codex/skills/personal-knowledge -> <ai-agent>/skills/personal-knowledge
 ~/.codex/skills/requirements-organizer -> <ai-agent>/skills/requirements-organizer
+~/.codex/skills/review-coding -> <ai-agent>/skills/review-coding
 ~/.codex/skills/rule-fix -> <ai-agent>/skills/rule-fix
+~/.codex/skills/timer -> <ai-agent>/skills/timer
 ~/.codex/skills/tutorial-writer -> <ai-agent>/skills/tutorial-writer
 
+~/.claude/skills/aliyun-oss -> <ai-agent>/skills/aliyun-oss
 ~/.claude/skills/bug -> <ai-agent>/skills/bug
+~/.claude/skills/dev-tool -> <ai-agent>/skills/dev-tool
 ~/.claude/skills/grafana -> <ai-agent>/skills/grafana
 ~/.claude/skills/hg-git -> <ai-agent>/skills/hg-git
 ~/.claude/skills/multi-agent-workflow -> <ai-agent>/skills/multi-agent-workflow
 ~/.claude/skills/personal-knowledge -> <ai-agent>/skills/personal-knowledge
 ~/.claude/skills/publish-gitlab-argo -> <ai-agent>/skills/publish-gitlab-argo
 ~/.claude/skills/requirements-organizer -> <ai-agent>/skills/requirements-organizer
+~/.claude/skills/review-coding -> <ai-agent>/skills/review-coding
 ~/.claude/skills/rule-fix -> <ai-agent>/skills/rule-fix
+~/.claude/skills/timer -> <ai-agent>/skills/timer
 ~/.claude/skills/tutorial-writer -> <ai-agent>/skills/tutorial-writer
 ~/.hermes/config.yaml skills.external_dirs includes each <ai-agent>/skills/<managed-skill>
 ~/.hermes/profiles/<profile>/config.yaml skills.external_dirs includes each <ai-agent>/skills/<managed-skill>
@@ -113,14 +130,18 @@ OpenClaw 目标配置形态：
   "skills": {
     "load": {
       "extraDirs": [
+        "<ai-agent>/skills/aliyun-oss",
         "<ai-agent>/skills/bug",
+        "<ai-agent>/skills/dev-tool",
         "<ai-agent>/skills/grafana",
         "<ai-agent>/skills/hg-git",
         "<ai-agent>/skills/multi-agent-workflow",
         "<ai-agent>/skills/personal-knowledge",
         "<ai-agent>/skills/publish-gitlab-argo",
         "<ai-agent>/skills/requirements-organizer",
+        "<ai-agent>/skills/review-coding",
         "<ai-agent>/skills/rule-fix",
+        "<ai-agent>/skills/timer",
         "<ai-agent>/skills/tutorial-writer"
       ]
     }

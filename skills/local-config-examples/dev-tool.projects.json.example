@@ -1,0 +1,22 @@
+{
+  "stateRoot": "<dev-tool-state-dir>",
+  "projects": {
+    "sample-dotnet-app": {
+      "name": "sample-dotnet-app",
+      "root": "<path-to-sample-dotnet-app>",
+      "solution": "SampleApp.sln",
+      "defaultService": "api",
+      "services": {
+        "api": {
+          "name": "SampleApp.Api",
+          "project": "src/SampleApp.Api/SampleApp.Api.csproj",
+          "port": 5000,
+          "urls": "http://example.test:5000",
+          "environment": {
+            "ASPNETCORE_ENVIRONMENT": "Development"
+          }
+        }
+      }
+    }
+  }
+}
