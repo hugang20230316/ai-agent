@@ -56,23 +56,25 @@ AI must decide candidate `log_kind`, `domain`, `tags`, `related_issues`, and use
 
 Keep candidate entries short and readable, but do not drop key meaning, evidence, sources, or validation boundaries.
 
-Every note has `log_kind` and `摘要`. `摘要` is the human review entry point and contains only `会话摘要` and `结论`. `会话摘要` must preserve the useful dialogue result as a compact standalone Markdown table with columns `角色`, `语义标签`, and `内容`; `角色` only uses `user` or `assistant`, and each summarized message gets its own row. Do not place this table under a list item; write `会话摘要：` as a plain line, then a blank line, then the table, so Obsidian renders it as a real table.
+Every note has `log_kind`, `记录理由`, `摘要`, and `结论`. `记录理由` is one short, concrete sentence explaining why the note is worth keeping. `摘要` is the human review entry point and contains only a compact standalone Markdown table with columns `角色`, `语义标签`, and `内容`; `角色` only uses `user` or `assistant`, and each summarized message gets its own row. Do not place this table under a list item. Do not write an extra `会话摘要：` line under `摘要`.
 
 Do not force every session into two user/assistant rounds. Short sessions usually need only a few rows; complex sessions should keep the key turns needed to recover the task goal, user corrections or clarifications, important decisions, execution result, and validation boundary. If the agent continues work without a new user message, keep an assistant row only for a meaningful phase and state in `内容` how it continues the prior user goal; never invent a user row.
 
 `语义标签` is optional. Use process labels such as `初步定位`, `目标收窄`, `承接处理`, or `验证收口` only when they clarify the row. Use feedback labels such as `纠正`, `抱怨`, `发火`, or `辱骂` only when the evidence clearly supports them; when such a label appears in the table, frontmatter must also include matching `feedback_signal`, `feedback_target`, and a searchable tag.
 
-`结论` is 1-2 factual sentences explaining why the note is worth keeping and what validation boundary applies. Do not write generic meta text such as "suitable as a candidate" or "needs human review." After that, use only the sections that fit the log kind:
+`结论` is its own `## 结论` section with 1-2 factual sentences explaining the final result and validation boundary. Do not write inline `结论：` text under `摘要`, and do not write generic meta text such as "suitable as a candidate" or "needs human review." After that, use only the sections that add information beyond `记录理由`, `摘要`, and `结论`:
 
 - `feedback`: `反馈`, `暴露的问题`, `处置`, `规则影响`, `关联`
 - `incident`: `现象`, `原因`, `处理`, `验证`, `关联`
 - `change`: `修改`, `验证`, `影响`, `关联`
 - `decision`: `决策`, `依据`, `影响`, `关联`
 - `workflow`: `流程`, `约束`, `触发条件`, `验证方式`, `关联`
-- `research`: `结论`, `依据`, `适用边界`, `关联`
+- `research`: `依据`, `适用边界`, `关联`
 - `plan`: `方案`, `取舍`, `下一步`, `关联`
 
-Do not force all notes into fixed fields such as `关键事实`, `证据与资料`, `具体问题`, `解决方案`, `验证情况`, and `关联判断`. Do not write a generic `待处理` section. A real follow-up belongs in `下一步`, and only for actionable work that will actually continue.
+Do not force all notes into fixed fields such as `关键事实`, `证据与资料`, `具体问题`, `解决方案`, `修改`, `验证情况`, and `关联判断`. Do not write a generic `待处理` section. A real follow-up belongs in `下一步`, and only for actionable work that will actually continue.
+
+Before writing human-facing Chinese body text, apply `humanizer-zh`: remove candidate-value meta phrases, collaborative filler, slogan-like wording, redundant headings, and formulaic `修改`/`验证` sections. Keep the text concrete enough for later maintenance.
 
 Do not attach full chat, full command output, oversized logs, oversized interface responses, screenshots, or browser sessions as the body of the note.
 

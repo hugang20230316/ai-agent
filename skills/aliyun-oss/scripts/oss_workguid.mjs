@@ -13,6 +13,8 @@ const TEACHER_AI_ENV_CONFIG = process.env.TEACHER_AI_OSS_ENV_CONFIG || findTeach
 const LOGICAL_BUCKET = process.env.OSS_LOGICAL_BUCKET || "7netomr";
 const DEFAULT_WORK_ROOT = "edumaterials/work2images/work3";
 const DEFAULT_MAX_READ_BYTES = 1024 * 1024;
+const DEFAULT_SIGNED_URL_SECONDS = 2 * 60 * 60;
+const MAX_SIGNED_URL_SECONDS = 24 * 60 * 60;
 const TEXT_EXTENSIONS = new Set([
   ".json",
   ".md",
@@ -62,6 +64,27 @@ async function main() {
       throw new Error(`OSS command stopped by signal: ${result.signal}`);
     }
     process.exit(result.status ?? 0);
+  }
+
+  if (command === "url") {
+    const { positionals, options } = parseArgs(args);
+    const [objectPath] = positionals;
+    const { logicalBucket, key } = splitObjectPath(objectPath);
+    const config = loadRuntimeConfig(logicalBucket, {
+      preferLogicalBucket: true,
+      requireCredentials: false
+    });
+    const client = createClient(config);
+    writeJson({
+      ok: true,
+      bucket: config.bucket,
+      key,
+      ...(await resolveAccessibleObject(client, key, {
+        expiresSeconds: options.expires,
+        outDir: options.out
+      }))
+    });
+    return;
   }
 
   const config = loadRuntimeConfig();
@@ -146,6 +169,7 @@ async function main() {
 function printHelp() {
   console.log(`Usage:
   oss_workguid.mjs from-url <oss-http-url>
+  oss_workguid.mjs url <logical-bucket/object-key> [--expires SECONDS] [--out DIR]
   oss_workguid.mjs list <workGuid> [subdir] [--limit N]
   oss_workguid.mjs info <workGuid>
   oss_workguid.mjs read <workGuid> <relativePath> [--force]
@@ -160,10 +184,10 @@ function parseArgs(args) {
     const arg = args[i];
     if (arg === "--force") {
       options.force = true;
-    } else if (arg === "--out" || arg === "--limit") {
+    } else if (arg === "--out" || arg === "--limit" || arg === "--expires") {
       const value = args[i + 1];
       ensure(value, `${arg} requires a value`);
-      options[arg.slice(2)] = arg === "--limit" ? Number(value) : value;
+      options[arg.slice(2)] = arg === "--out" ? value : Number(value);
       i += 1;
     } else {
       positionals.push(arg);
@@ -173,20 +197,21 @@ function parseArgs(args) {
   return { positionals, options };
 }
 
-function loadRuntimeConfig() {
-  const appConfig = readJsoncFile(TEACHER_AI_CONFIG);
-  const envConfig = readEnvFile(TEACHER_AI_ENV_CONFIG);
+export function loadRuntimeConfig(logicalBucket = LOGICAL_BUCKET, options = {}) {
+  const runtimeEnv = options.env || process.env;
+  const appConfig = options.appConfig ?? readJsoncFile(TEACHER_AI_CONFIG);
+  const envConfig = options.envConfig ?? readEnvFile(TEACHER_AI_ENV_CONFIG);
   const ossConfig = appConfig.OssConfig || {};
   const scanOss = appConfig.ScanOss || {};
 
   const region = firstValue(
-    process.env.OSS_REGION,
+    runtimeEnv.OSS_REGION,
     ossConfig.Region,
     envConfig.APPCUSTOM_OssConfig__Region,
     "cn-qingdao"
   );
   const endpoint = trimSlash(firstValue(
-    process.env.OSS_ENDPOINT,
+    runtimeEnv.OSS_ENDPOINT,
     ossConfig.PublicEndpoint,
     ossConfig.Endpoint,
     envConfig.APPCUSTOM_OssConfig__PublicEndpoint,
@@ -194,33 +219,36 @@ function loadRuntimeConfig() {
     `https://oss-${region}.aliyuncs.com`
   ));
   const bucketFormat = firstValue(
-    process.env.OSS_BUCKET_FORMAT,
+    runtimeEnv.OSS_BUCKET_FORMAT,
     ossConfig.BucketFormat,
     envConfig.APPCUSTOM_OssConfig__BucketFormat,
     "{0}-dev"
   );
   const bucket = firstValue(
-    process.env.OSS_BUCKET,
-    bucketFormat.replace("{0}", LOGICAL_BUCKET)
+    options.preferLogicalBucket ? null : runtimeEnv.OSS_BUCKET,
+    bucketFormat.replace("{0}", logicalBucket)
   );
   const accessKeyId = firstValue(
-    process.env.OSS_ACCESS_KEY_ID,
+    runtimeEnv.OSS_ACCESS_KEY_ID,
     ossConfig.AccessKeyId,
     envConfig.APPCUSTOM_OssConfig__AccessKeyId
   );
   const accessKeySecret = firstValue(
-    process.env.OSS_ACCESS_KEY_SECRET,
+    runtimeEnv.OSS_ACCESS_KEY_SECRET,
     ossConfig.AccessKeySecret,
     envConfig.APPCUSTOM_OssConfig__AccessKeySecret
   );
   const workRoot = [
-    firstValue(process.env.OSS_EDUMATERIALS_PATH, scanOss.OssPath, "edumaterials"),
+    firstValue(runtimeEnv.OSS_EDUMATERIALS_PATH, scanOss.OssPath, "edumaterials"),
     "work2images",
     "work3"
   ].join("/");
 
-  ensure(accessKeyId, "OSS access key id is not configured");
-  ensure(accessKeySecret, "OSS access key secret is not configured");
+  // Public URL checks do not require OSS credentials.
+  if (options.requireCredentials !== false) {
+    ensure(accessKeyId, "OSS access key id is not configured");
+    ensure(accessKeySecret, "OSS access key secret is not configured");
+  }
 
   return { region, endpoint, bucket, accessKeyId, accessKeySecret, workRoot };
 }
@@ -467,6 +495,112 @@ async function getObject(client, key) {
   return requestOss(client, "GET", `/${encodeObjectPath(key)}`);
 }
 
+export function splitObjectPath(value) {
+  const clean = String(value || "").replace(/^oss:\/\//, "").replace(/^\/+/, "");
+  const separator = clean.indexOf("/");
+  ensure(separator > 0 && separator < clean.length - 1, "object path must use logical-bucket/object-key format");
+  const logicalBucket = clean.slice(0, separator);
+  const key = clean.slice(separator + 1);
+  ensure(/^[a-z0-9][a-z0-9-]{1,62}$/.test(logicalBucket), `invalid logical bucket: ${logicalBucket}`);
+  ensure(!key.includes("\\"), "object key must not contain backslashes");
+  ensure(!key.split("/").includes(".."), "object key must not contain .. segments");
+  return { logicalBucket, key };
+}
+
+export function buildSignedGetUrl(client, key, options = {}) {
+  const now = options.now || new Date();
+  // Limit signed URLs to the short sharing window allowed by this command.
+  const expiresSeconds = options.expiresSeconds === undefined
+    ? DEFAULT_SIGNED_URL_SECONDS
+    : Number(options.expiresSeconds);
+  ensure(Number.isInteger(expiresSeconds) && expiresSeconds > 0, "--expires must be a positive integer");
+  ensure(expiresSeconds <= MAX_SIGNED_URL_SECONDS, `--expires must not exceed ${MAX_SIGNED_URL_SECONDS}`);
+  const expires = Math.floor(now.getTime() / 1000) + expiresSeconds;
+  const stringToSign = `GET\n\n\n${expires}\n/${client.bucket}/${key}`;
+  const signature = crypto
+    .createHmac("sha1", client.accessKeySecret)
+    .update(stringToSign, "utf8")
+    .digest("base64");
+  const url = new URL(client.baseUrl);
+  url.hostname = `${client.bucket}.${client.baseUrl.hostname}`;
+  url.pathname = `/${encodeObjectPath(key)}`;
+  url.searchParams.set("OSSAccessKeyId", client.accessKeyId);
+  url.searchParams.set("Expires", String(expires));
+  url.searchParams.set("Signature", signature);
+  return url.toString();
+}
+
+export async function resolveAccessibleObject(client, key, options = {}) {
+  const fetchFn = options.fetchFn || fetch;
+  const getObjectFn = options.getObjectFn || getObject;
+  const unsignedUrl = new URL(client.baseUrl);
+  unsignedUrl.hostname = `${client.bucket}.${client.baseUrl.hostname}`;
+  unsignedUrl.pathname = `/${encodeObjectPath(key)}`;
+  const publicUrl = unsignedUrl.toString();
+  // Prefer a stable unsigned URL when the object is already public.
+  const publicStatus = await verifyObjectUrl(publicUrl, fetchFn);
+  if (publicStatus) {
+    return { access: "public-url", verifiedStatus: publicStatus, url: publicUrl };
+  }
+
+  // Signed URLs and authenticated downloads need credentials after public access fails.
+  if (!client.accessKeyId || !client.accessKeySecret) {
+    ensure(
+      publicStatus !== null,
+      "public URL could not be verified and OSS credentials are not configured"
+    );
+    throw new Error("object is not publicly accessible and OSS credentials are not configured");
+  }
+  const now = options.now || new Date();
+  // Limit signed URLs to the short sharing window allowed by this command.
+  const expiresSeconds = options.expiresSeconds === undefined
+    ? DEFAULT_SIGNED_URL_SECONDS
+    : Number(options.expiresSeconds);
+  ensure(Number.isInteger(expiresSeconds) && expiresSeconds > 0, "--expires must be a positive integer");
+  ensure(expiresSeconds <= MAX_SIGNED_URL_SECONDS, `--expires must not exceed ${MAX_SIGNED_URL_SECONDS}`);
+  const signedUrl = buildSignedGetUrl(client, key, { now, expiresSeconds });
+  // Keep private objects private while making the link temporarily shareable.
+  const signedStatus = await verifyObjectUrl(signedUrl, fetchFn);
+  if (signedStatus) {
+    return {
+      access: "signed-url",
+      expiresAt: new Date(now.getTime() + expiresSeconds * 1000).toISOString(),
+      verifiedStatus: signedStatus,
+      url: signedUrl
+    };
+  }
+
+  // Preserve user access by downloading only after both URL forms fail.
+  const object = await getObjectFn(client, key);
+  const localPath = safeDownloadPath(
+    options.outDir || path.join(os.homedir(), "Downloads", "oss", client.bucket),
+    key
+  );
+  fs.mkdirSync(path.dirname(localPath), { recursive: true });
+  fs.writeFileSync(localPath, object.body);
+  return {
+    access: "local-file",
+    contentLength: object.body.length,
+    contentType: object.headers["content-type"] || null,
+    localPath
+  };
+}
+
+async function verifyObjectUrl(url, fetchFn) {
+  try {
+    const response = await fetchFn(url, {
+      method: "GET",
+      headers: { range: "bytes=0-0" }
+    });
+    if (response.body && typeof response.body.cancel === "function") {
+      await response.body.cancel();
+    }
+    return response.status === 200 || response.status === 206 ? response.status : false;
+  } catch {
+    return null;
+  }
+}
+
 async function requestOss(client, method, pathname, searchParams = new URLSearchParams()) {
   const now = new Date();
   const amzDate = formatAmzDate(now);
@@ -553,7 +687,7 @@ function summarizeInfoJson(info) {
   };
 }
 
-function parseOssUrl(rawUrl) {
+export function parseOssUrl(rawUrl) {
   const url = new URL(rawUrl);
   const hostParts = url.hostname.split(".");
   const bucket = hostParts[0];
@@ -564,12 +698,18 @@ function parseOssUrl(rawUrl) {
     ? key.slice(key.indexOf(`/work3/${workGuid}/`) + `/work3/${workGuid}/`.length)
     : null;
 
+  const queryNames = new Set([...url.searchParams.keys()].map((name) => name.toLowerCase()));
+  // V1 URLs are signed only when the credential, expiry, and signature are all present.
+  const hasV1Signature = queryNames.has("ossaccesskeyid") &&
+    queryNames.has("expires") &&
+    queryNames.has("signature");
+
   return {
     bucket,
     key,
     workGuid,
     relativePath,
-    hasSignedQuery: [...url.searchParams.keys()].some((name) => name.toLowerCase().startsWith("x-oss-"))
+    hasSignedQuery: hasV1Signature || [...queryNames].some((name) => name.startsWith("x-oss-"))
   };
 }
 

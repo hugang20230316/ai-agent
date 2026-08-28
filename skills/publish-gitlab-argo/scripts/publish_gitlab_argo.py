@@ -318,6 +318,26 @@ def run_git(repo_path: Path, *arguments: str) -> str:
     return process.stdout.strip()
 
 
+def git_ref_exists(repo_path: Path, ref_name: str) -> bool:
+    process = subprocess.run(
+        [
+            "git",
+            "-c",
+            f"safe.directory={repo_path}",
+            "-C",
+            str(repo_path),
+            "rev-parse",
+            "--quiet",
+            "--verify",
+            ref_name,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return process.returncode == 0
+
+
 def git_root(path: Path) -> Path | None:
     process = subprocess.run(
         ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
@@ -335,6 +355,37 @@ def git_changed_files(repo_path: Path, base_ref: str, head_ref: str) -> list[str
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 
+def resolve_locked_source(repo_path: Path, source_ref: str) -> dict[str, str]:
+    if not source_ref:
+        raise RuntimeError("发布源码未锁定。请通过 -SourceRef 或本机 sourceRef 配置明确指定 Git ref。")
+
+    current_branch = run_git(repo_path, "branch", "--show-current")
+    # 冲突中的 HEAD 或当前分支无法代表可重复解析的发布源码。
+    if (
+        git_ref_exists(repo_path, "MERGE_HEAD")
+        or run_git(repo_path, "diff", "--name-only", "--diff-filter=U").strip()
+    ) and source_ref in {
+        "HEAD",
+        current_branch,
+        f"refs/heads/{current_branch}",
+    }:
+        raise RuntimeError(
+            f"仓库存在未解决冲突，禁止从 {source_ref} 锁定发布源码；请指定不依赖当前工作区的明确 ref。"
+        )
+
+    source_commit = run_git(repo_path, "rev-parse", "--verify", f"{source_ref}^{{commit}}")
+    symbolic_ref = run_git(repo_path, "rev-parse", "--symbolic-full-name", source_ref)
+    source_branch = ""
+    for prefix in ("refs/heads/", "refs/remotes/origin/"):
+        if symbolic_ref.startswith(prefix):
+            source_branch = symbolic_ref[len(prefix) :]
+            break
+    return {
+        "sourceRef": source_ref,
+        "sourceCommit": source_commit,
+        "sourceBranch": source_branch,
+        "currentBranch": current_branch,
+    }
 def ensure_repo_matches_cwd(repo_path: Path, requested_path: str | None) -> None:
     if requested_path:
         return
@@ -504,6 +555,25 @@ def gitlab_create_tag(connection: GitLabConnection, tag_name: str, ref: str, mes
         raise
 
 
+def gitlab_tag_commit(connection: GitLabConnection, tag_name: str) -> str:
+    response = gitlab_request(
+        connection,
+        "GET",
+        f"/api/v4/projects/{connection.project_id}/repository/tags/{parse.quote(tag_name, safe='')}",
+    )
+    return str(response.get("commit", {}).get("id") or response.get("target") or "")
+
+
+def ensure_gitlab_tag_matches_source(connection: GitLabConnection, tag_name: str, source_commit: str) -> str:
+    tag_commit = gitlab_tag_commit(connection, tag_name)
+    # 流水线和部署只能继续使用仍指向锁定源码的计划 tag。
+    if tag_commit != source_commit:
+        raise RuntimeError(
+            f"计划 tag {tag_name} 未指向锁定源码提交 {source_commit}，实际为 {tag_commit or '(空)'}，停止发布"
+        )
+    return tag_commit
+
+
 def gitlab_pipeline_status(connection: GitLabConnection, tag: str) -> dict[str, str] | None:
     response = gitlab_request(
         connection,
@@ -537,7 +607,7 @@ def normalize_gitlab_status(status: str) -> str:
         "created": "running",
         "preparing": "running",
         "waiting_for_resource": "running",
-        "manual": "running",
+        "manual": "manual",
     }.get(status, status)
 
 
@@ -633,6 +703,7 @@ def gate_job_states(jobs: list[dict[str, Any]], gate_job_names: list[str]) -> tu
         job = job_by_name[name]
         states.append(
             {
+                "id": str(job.get("id", "")),
                 "name": name,
                 "status": str(job.get("status", "")),
                 "normalized": normalize_gitlab_status(str(job.get("status", ""))),
@@ -652,38 +723,61 @@ def wait_gitlab_latest_release_jobs_passed(
     poll_interval_seconds: int,
     release_pattern: re.Pattern[str],
     *,
+    planned_tag: str,
+    source_commit: str,
+    auto_play_job_names: set[str] | None = None,
     args: argparse.Namespace | None = None,
 ) -> dict[str, Any]:
     started_at = utc_now()
     deadline = started_at + timedelta(seconds=timeout_seconds)
+    gate_identity = f"tag={planned_tag} sourceCommit={source_commit}"
     observations: list[dict[str, Any]] = []
+    played_job_ids: set[str] = set()
+    allowed_auto_play_jobs = auto_play_job_names or set()
     last_progress_at = started_at - timedelta(seconds=60)
     while utc_now() < deadline:
-        latest = gitlab_latest_release_tag(connection, release_pattern)
-        pipeline = gitlab_pipeline_status(connection, latest["latestTag"])
+        tag_commit = ensure_gitlab_tag_matches_source(connection, planned_tag, source_commit)
+        pipeline = gitlab_pipeline_status(connection, planned_tag)
         if not pipeline:
-            raise RuntimeError(f"最新 tag {latest['latestTag']} 没有找到流水线")
+            raise RuntimeError(f"GitLab job gate 失败: {gate_identity}; 没有找到流水线")
         jobs = gitlab_pipeline_jobs(connection, pipeline["id"])
         states, unavailable_reason = gate_job_states(jobs, gate_job_names)
         if unavailable_reason:
-            raise RuntimeError(unavailable_reason)
-        observations.append({"tag": latest["latestTag"], "pipeline": pipeline["id"], "jobs": states})
+            raise RuntimeError(f"GitLab job gate 失败: {gate_identity}; {unavailable_reason}")
+        observations.append({"tag": planned_tag, "pipeline": pipeline["id"], "jobs": states})
+        # 只自动触发本机白名单内的手动构建，避免误跑无关发布任务
+        manual_jobs = [item for item in states if item["normalized"] == "manual"]
+        blocked_manual_jobs = [item["name"] for item in manual_jobs if item["name"] not in allowed_auto_play_jobs]
+        if blocked_manual_jobs:
+            raise RuntimeError(
+                f"GitLab job gate 失败: {gate_identity}; job 需要手动触发，且未配置自动触发白名单: "
+                + ", ".join(blocked_manual_jobs)
+            )
+        for item in manual_jobs:
+            job_id = item["id"]
+            if not job_id:
+                raise RuntimeError(
+                    f"GitLab job gate 失败: {gate_identity}; 手动 job {item['name']} 缺少 job id，无法自动触发"
+                )
+            if job_id not in played_job_ids:
+                gitlab_request(connection, "POST", f"/api/v4/projects/{connection.project_id}/jobs/{job_id}/play")
+                played_job_ids.add(job_id)
         if args and not getattr(args, "quiet", False) and elapsed_seconds_since(last_progress_at) >= 30:
             running = ", ".join(f"{item['name']}={item['normalized']}" for item in states)
             report_progress(
                 args,
-                f"GitLab job gate tag={latest['latestTag']} pipeline={pipeline['id']} {running} "
+                f"GitLab job gate tag={planned_tag} pipeline={pipeline['id']} {running} "
                 f"elapsed={elapsed_seconds_since(started_at)}s remaining={seconds_until(deadline)}s",
             )
             last_progress_at = utc_now()
         failed_jobs = [item for item in states if item["normalized"] in {"failed", "canceled", "skipped"}]
         if failed_jobs:
             status_text = ", ".join(f"{item['name']}={item['normalized']}" for item in failed_jobs)
-            raise RuntimeError(f"GitLab job gate 失败: {status_text}")
+            raise RuntimeError(f"GitLab job gate 失败: {gate_identity}; {status_text}")
         if all(item["normalized"] == "passed" for item in states):
             return {
-                "latestTag": latest["latestTag"],
-                "latestTagCommit": latest["latestTagCommit"],
+                "latestTag": planned_tag,
+                "latestTagCommit": tag_commit,
                 "pipelineStatus": "jobs-passed",
                 "pipelineId": pipeline["id"],
                 "gateMode": "jobs",
@@ -699,8 +793,8 @@ def wait_gitlab_latest_release_jobs_passed(
     if observations:
         last_observation = observations[-1]
         job_text = ", ".join(f"{item['name']}={item['normalized']}" for item in last_observation.get("jobs") or [])
-        suffix = f": tag={last_observation.get('tag', '')} pipeline={last_observation.get('pipeline', '')} {job_text}"
-    raise RuntimeError(f"GitLab job gate 在 {timeout_seconds} 秒内仍未通过{suffix}")
+        suffix = f" pipeline={last_observation.get('pipeline', '')} {job_text}"
+    raise RuntimeError(f"GitLab job gate 在 {timeout_seconds} 秒内仍未通过: {gate_identity}{suffix}")
 
 
 def wait_gitlab_latest_release_tag_passed(
@@ -709,20 +803,23 @@ def wait_gitlab_latest_release_tag_passed(
     poll_interval_seconds: int,
     release_pattern: re.Pattern[str],
     *,
+    planned_tag: str,
+    source_commit: str,
     args: argparse.Namespace | None = None,
     fallback_reason: str = "",
 ) -> dict[str, Any]:
     started_at = utc_now()
     deadline = started_at + timedelta(seconds=timeout_seconds)
+    gate_identity = f"tag={planned_tag} sourceCommit={source_commit}"
     observations: list[dict[str, str]] = []
     while utc_now() < deadline:
-        latest = gitlab_latest_release_tag(connection, release_pattern)
-        pipeline = gitlab_pipeline_status(connection, latest["latestTag"])
+        tag_commit = ensure_gitlab_tag_matches_source(connection, planned_tag, source_commit)
+        pipeline = gitlab_pipeline_status(connection, planned_tag)
         normalized = pipeline["normalized"] if pipeline else "none"
         observations.append(
             {
-                "tag": latest["latestTag"],
-                "commit": latest["latestTagCommit"],
+                "tag": planned_tag,
+                "commit": tag_commit,
                 "status": normalized,
                 "pipeline": pipeline["id"] if pipeline else "",
             }
@@ -731,14 +828,14 @@ def wait_gitlab_latest_release_tag_passed(
             report_progress(
                 args,
                 "GitLab pipeline "
-                f"tag={latest['latestTag']} status={normalized} "
+                f"tag={planned_tag} status={normalized} "
                 f"pipeline={pipeline['id'] if pipeline else ''} "
                 f"elapsed={elapsed_seconds_since(started_at)}s remaining={seconds_until(deadline)}s",
             )
         if normalized == "passed":
             return {
-                "latestTag": latest["latestTag"],
-                "latestTagCommit": latest["latestTagCommit"],
+                "latestTag": planned_tag,
+                "latestTagCommit": tag_commit,
                 "pipelineStatus": normalized,
                 "pipelineId": pipeline["id"] if pipeline else "",
                 "gateMode": "pipeline",
@@ -750,9 +847,9 @@ def wait_gitlab_latest_release_tag_passed(
                 "elapsedSeconds": elapsed_seconds_since(started_at),
             }
         if normalized in {"failed", "canceled", "skipped"}:
-            raise RuntimeError(f"最新 tag {latest['latestTag']} 的流水线状态为 {normalized}，停止发布")
+            raise RuntimeError(f"GitLab pipeline 失败: {gate_identity} status={normalized}，停止发布")
         time.sleep(min(poll_interval_seconds, max(seconds_until(deadline), 1)))
-    raise RuntimeError(f"最新 tag 流水线在 {timeout_seconds} 秒内仍未通过")
+    raise RuntimeError(f"GitLab pipeline 在 {timeout_seconds} 秒内仍未通过: {gate_identity}")
 
 
 def wait_gitlab_release_gate(
@@ -760,6 +857,9 @@ def wait_gitlab_release_gate(
     args: argparse.Namespace,
     timeout_seconds: int,
     release_pattern: re.Pattern[str],
+    *,
+    planned_tag: str,
+    source_commit: str,
 ) -> dict[str, Any]:
     selected_apps = selected_argocd_apps(args)
     explicit_jobs = getattr(args, "gitlab_gate_jobs", None) or []
@@ -770,26 +870,36 @@ def wait_gitlab_release_gate(
             fallback_reason = "当前 scope 无法在 GitLab gate 前解析目标应用"
         else:
             gate_job_names, fallback_reason = gitlab_gate_jobs_for_apps(selected_apps)
+            if fallback_reason:
+                raise RuntimeError(
+                    f"GitLab job gate 配置错误: tag={planned_tag} sourceCommit={source_commit}; {fallback_reason}"
+                )
     if gate_job_names:
-        try:
-            return wait_gitlab_latest_release_jobs_passed(
-                connection,
-                gate_job_names,
-                timeout_seconds,
-                args.gitlab_poll_interval_seconds,
-                release_pattern,
-                args=args,
-            )
-        except RuntimeError as exc:
-            message = str(exc)
-            if message.startswith("GitLab job gate 失败") or message.startswith("GitLab job gate 在"):
-                raise
-            fallback_reason = message
+        configured_auto_play_jobs = PUBLISH_CONFIG.get("gitlabAutoPlayJobs") or []
+        if isinstance(configured_auto_play_jobs, str):
+            auto_play_job_names = {item.strip() for item in configured_auto_play_jobs.split(",") if item.strip()}
+        elif isinstance(configured_auto_play_jobs, list):
+            auto_play_job_names = {str(item).strip() for item in configured_auto_play_jobs if str(item).strip()}
+        else:
+            raise RuntimeError("gitlabAutoPlayJobs 必须是 job 名称数组或逗号分隔字符串")
+        return wait_gitlab_latest_release_jobs_passed(
+            connection,
+            gate_job_names,
+            timeout_seconds,
+            args.gitlab_poll_interval_seconds,
+            release_pattern,
+            planned_tag=planned_tag,
+            source_commit=source_commit,
+            auto_play_job_names=auto_play_job_names,
+            args=args,
+        )
     return wait_gitlab_latest_release_tag_passed(
         connection,
         timeout_seconds,
         args.gitlab_poll_interval_seconds,
         release_pattern,
+        planned_tag=planned_tag,
+        source_commit=source_commit,
         args=args,
         fallback_reason=fallback_reason,
     )
@@ -811,13 +921,19 @@ def next_tag(tag: str) -> str:
 def resolve_publish_plan(args: argparse.Namespace) -> dict[str, Any]:
     repo_path = resolve_repo_path(args.repo_path or PUBLISH_CONFIG.get("repoPath"))
     ensure_repo_matches_cwd(repo_path, args.repo_path)
+    locked_source = resolve_locked_source(
+        repo_path,
+        str(getattr(args, "source_ref", None) or PUBLISH_CONFIG.get("sourceRef") or "").strip(),
+    )
+    source_ref = locked_source["sourceRef"]
+    source_commit = locked_source["sourceCommit"]
+    current_branch = locked_source["currentBranch"]
+    source_branch = locked_source["sourceBranch"]
     connection = gitlab_connection_info(repo_path, args)
-    source_commit = run_git(repo_path, "rev-parse", "HEAD")
-    commit_subject = run_git(repo_path, "log", "-1", "--pretty=%s")
-    tag_description = run_git(repo_path, "log", "-1", "--pretty=%B")
-    current_branch = run_git(repo_path, "branch", "--show-current")
+    commit_subject = run_git(repo_path, "log", "-1", "--pretty=%s", source_commit)
+    tag_description = run_git(repo_path, "log", "-1", "--pretty=%B", source_commit)
     remote_url = run_git(repo_path, "remote", "get-url", "origin")
-    release_pattern = release_tag_pattern_for_branch(current_branch)
+    release_pattern = release_tag_pattern_for_branch(source_branch)
     latest = gitlab_latest_release_tag(connection, release_pattern)
     latest_tag = latest["latestTag"]
     latest_tag_commit = latest["latestTagCommit"]
@@ -829,12 +945,20 @@ def resolve_publish_plan(args: argparse.Namespace) -> dict[str, Any]:
     change_base_ref = latest_tag if should_create else (previous_tag or {}).get("name", latest_tag)
     changed_files = git_changed_files(repo_path, change_base_ref, source_commit) if change_base_ref else []
     changed_apps = apps_for_changed_files(changed_files, configured_app_path_rules())
-    target_apps = changed_apps if args.scope == DEFAULT_SCOPE and changed_apps else (DEFAULT_DEFAULT_APPS if args.scope == DEFAULT_SCOPE else [])
-    app_selection_rule = (
-        f"按变更文件映射选择应用，基准 tag={change_base_ref}"
-        if args.scope == DEFAULT_SCOPE and changed_apps
-        else ("变更文件未匹配 appPathRules，回退 local config 中的 defaultApps" if args.scope == DEFAULT_SCOPE else "执行阶段从 Argo CD API 按 allAppsNameFilter 筛选全部应用")
-    )
+    explicit_apps = selected_argocd_apps(args) if getattr(args, "apps", None) else []
+    # 部署应用只由显式参数和锁定提交的变更决定，不参与源码选择。
+    if explicit_apps:
+        target_apps = explicit_apps
+        app_selection_rule = "使用命令显式指定的应用"
+    elif args.scope == DEFAULT_SCOPE and changed_apps:
+        target_apps = changed_apps
+        app_selection_rule = f"按变更文件映射选择应用，基准 tag={change_base_ref}"
+    elif args.scope == DEFAULT_SCOPE:
+        target_apps = DEFAULT_DEFAULT_APPS
+        app_selection_rule = "变更文件未匹配 appPathRules，回退 local config 中的 defaultApps"
+    else:
+        target_apps = []
+        app_selection_rule = "执行阶段从 Argo CD API 按 allAppsNameFilter 筛选全部应用"
     reason = (
         f"远端最新 tag {latest_tag} 未指向当前提交 {source_commit}，需要创建 {next_release_tag}"
         if should_create
@@ -847,6 +971,10 @@ def resolve_publish_plan(args: argparse.Namespace) -> dict[str, Any]:
         "remoteUrl": remote_url,
         "releaseTagPattern": release_pattern.pattern,
         "currentBranch": current_branch,
+        "sourceRef": source_ref,
+        "sourceRefSource": "cli" if getattr(args, "source_ref", None) else "config",
+        "sourceRefLocked": True,
+        "sourceBranch": source_branch,
         "latestTag": latest_tag,
         "latestTagCommit": latest_tag_commit,
         "nextTag": next_release_tag,
@@ -896,6 +1024,25 @@ def read_json_file(path: Path) -> dict[str, Any] | None:
 def write_json_file(path: Path, payload: dict[str, Any]) -> None:
     ensure_directory(path.parent)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def publish_identity(plan: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "sourceRef": str(plan.get("sourceRef") or ""),
+        "sourceCommit": str(plan.get("sourceCommit") or ""),
+        "effectiveTag": str(plan.get("effectiveTag") or ""),
+        "targetApps": sorted(str(item) for item in plan.get("targetApps") or []),
+    }
+
+
+def result_publish_identity(result: dict[str, Any]) -> dict[str, Any]:
+    raw_plan = result.get("plan")
+    result_plan = dict(raw_plan) if isinstance(raw_plan, dict) else {}
+    raw_argocd = result.get("argocd")
+    resolved_apps = (raw_argocd if isinstance(raw_argocd, dict) else {}).get("resolvedApps")
+    if resolved_apps is not None:
+        result_plan["targetApps"] = resolved_apps
+    return publish_identity(result_plan)
 
 
 def keychain_account(base_url: str, username: str) -> str:
@@ -1192,21 +1339,28 @@ def wait_argocd_sync(
     raise RuntimeError(f"应用 {name} 在 {timeout_seconds} 秒内未完成同步")
 
 
+def configured_all_argocd_apps(args: argparse.Namespace, token: str) -> list[str]:
+    name_filter = DEFAULT_ALL_APPS_NAME_FILTER
+    return sorted(
+        {
+            str(item.get("metadata", {}).get("name", ""))
+            for item in argocd_application_list(args.base_url, token, args.project)
+            if not name_filter or name_filter in str(item.get("metadata", {}).get("name", ""))
+        }
+    )
+
+
 def argocd_publish(args: argparse.Namespace, target_tag: str, *, deadline: datetime | None = None) -> dict[str, Any]:
     started_at = utc_now()
     session = get_argocd_access_token(args)
     token = session["token"]
-    if args.scope == DEFAULT_SCOPE or args.apps:
+    pre_resolved_apps = getattr(args, "resolved_apps", None)
+    if pre_resolved_apps is not None:
+        resolved_apps = list(pre_resolved_apps)
+    elif args.scope == DEFAULT_SCOPE or args.apps:
         resolved_apps = selected_argocd_apps(args)
     else:
-        name_filter = DEFAULT_ALL_APPS_NAME_FILTER
-        resolved_apps = sorted(
-            {
-                str(item.get("metadata", {}).get("name", ""))
-                for item in argocd_application_list(args.base_url, token, args.project)
-                if not name_filter or name_filter in str(item.get("metadata", {}).get("name", ""))
-            }
-        )
+        resolved_apps = configured_all_argocd_apps(args, token)
 
     updated_and_synced: list[dict[str, Any]] = []
     no_change: list[dict[str, Any]] = []
@@ -1302,6 +1456,11 @@ def publish_result_to_text(result: dict[str, Any]) -> str:
         [
             f"scope: {result['scope']}",
             f"whatIf: {result['whatIf']}",
+            f"plan.sourceRef: {result['plan']['sourceRef']}",
+            f"plan.sourceRefSource: {result['plan']['sourceRefSource']}",
+            f"plan.sourceRefLocked: {result['plan']['sourceRefLocked']}",
+            f"plan.sourceBranch: {result['plan']['sourceBranch']}",
+            f"plan.sourceCommit: {result['plan']['sourceCommit']}",
             f"plan.latestTag: {result['plan']['latestTag']}",
             f"plan.nextTag: {result['plan']['nextTag']}",
             f"plan.shouldCreateTag: {result['plan']['shouldCreateTag']}",
@@ -1327,6 +1486,10 @@ def plan_to_text(plan: dict[str, Any]) -> str:
             f"repoPath: {plan['repoPath']}",
             f"scope: {plan['scope']}",
             f"currentBranch: {plan['currentBranch']}",
+            f"sourceRef: {plan['sourceRef']}",
+            f"sourceRefSource: {plan['sourceRefSource']}",
+            f"sourceRefLocked: {plan['sourceRefLocked']}",
+            f"sourceBranch: {plan['sourceBranch']}",
             f"releaseTagPattern: {plan['releaseTagPattern']}",
             f"latestTag: {plan['latestTag']}",
             f"latestTagCommit: {plan['latestTagCommit']}",
@@ -1350,8 +1513,14 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
     resolve_args = argparse.Namespace(**vars(args))
     plan = resolve_publish_plan(resolve_args)
     connection: GitLabConnection = plan.pop("_connection")
-    if not getattr(args, "apps", None) and args.scope == DEFAULT_SCOPE:
+    # 并发锁必须记录确切应用；all scope 先解析应用，再进入任何发布写操作。
+    if not getattr(args, "apps", None) and args.scope == "all":
+        args.resolved_apps = configured_all_argocd_apps(args, get_argocd_access_token(args)["token"])
+        plan["targetApps"] = list(args.resolved_apps)
+        plan["appSelectionRule"] = "发布前从 Argo CD API 按 allAppsNameFilter 锁定全部应用"
+    elif not getattr(args, "apps", None) and args.scope == DEFAULT_SCOPE:
         args.resolved_apps = list(plan["targetApps"])
+    expected_identity = publish_identity(plan)
     state_dir = publish_state_directory(create_default=True)
     assert state_dir is not None
     lock_path = state_file_path(state_dir, LOCK_FILE_NAME, LEGACY_LOCK_FILE_NAME)
@@ -1362,7 +1531,11 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
         args.gitlab_wait_timeout_seconds + args.sync_timeout_seconds,
     )
     total_deadline = started_at + timedelta(seconds=total_timeout_seconds)
-    report_progress(args, f"Publish start scope={args.scope} tag={plan['effectiveTag']} totalTimeout={total_timeout_seconds}s")
+    report_progress(
+        args,
+        f"Publish start source={plan['sourceRef']} commit={plan['sourceCommit']} "
+        f"scope={args.scope} tag={plan['effectiveTag']} totalTimeout={total_timeout_seconds}s",
+    )
 
     if not args.what_if:
         while True:
@@ -1372,6 +1545,12 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                     try:
                         existing_pid = int(existing_lock["processId"])
                         os.kill(existing_pid, 0)
+                        if publish_identity(existing_lock) != expected_identity:
+                            raise RuntimeError(
+                                f"检测到已有发布进程 {existing_pid}，但其源码、tag 或目标应用与当前请求不一致，禁止复用。"
+                                f"当前 sourceRef={plan['sourceRef']} sourceCommit={plan['sourceCommit']} "
+                                f"plannedTag={plan['effectiveTag']}"
+                            )
                         existing_started_at = parse_datetime(str(existing_lock.get("startedAt") or "")) or started_at
                         existing_total_timeout_seconds = int(existing_lock.get("totalTimeoutSeconds") or total_timeout_seconds)
                         existing_deadline = existing_started_at + timedelta(seconds=existing_total_timeout_seconds)
@@ -1383,7 +1562,7 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                         while utc_now() < join_deadline:
                             if result_path.exists():
                                 existing_result = read_json_file(result_path)
-                                if existing_result:
+                                if existing_result and result_publish_identity(existing_result) == expected_identity:
                                     return existing_result
                             try:
                                 os.kill(existing_pid, 0)
@@ -1392,7 +1571,7 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                                 break
                         if result_path.exists():
                             existing_result = read_json_file(result_path)
-                            if existing_result:
+                            if existing_result and result_publish_identity(existing_result) == expected_identity:
                                 return existing_result
                         raise RuntimeError(
                             f"检测到已有发布进程 {existing_pid}，但已超过可等待预算。"
@@ -1412,6 +1591,7 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                     "processId": os.getpid(),
                     "repoPath": plan["repoPath"],
                     "scope": args.scope,
+                    **expected_identity,
                     "startedAt": utc_iso(started_at),
                     "totalTimeoutSeconds": total_timeout_seconds,
                 },
@@ -1438,12 +1618,20 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
             switch_reason = ""
         else:
             create_action = gitlab_create_tag(connection, plan["nextTag"], plan["sourceCommit"], plan["tagDescription"])["action"] if plan["shouldCreateTag"] else "skipped"
+            ensure_gitlab_tag_matches_source(connection, plan["effectiveTag"], plan["sourceCommit"])
             gitlab_wait_seconds = min(args.gitlab_wait_timeout_seconds, seconds_until(total_deadline))
             if gitlab_wait_seconds <= 0:
                 raise RuntimeError(f"发布命令总耗时超过 {total_timeout_seconds} 秒，未进入 GitLab 等待阶段")
-            wait_result = wait_gitlab_release_gate(connection, args, gitlab_wait_seconds, re.compile(plan["releaseTagPattern"]))
-            final_tag = wait_result["latestTag"]
-            switch_reason = f"GitLab 等待期间检测到更新的最新 tag，发布目标自动切换为 {final_tag}" if final_tag != plan["effectiveTag"] else ""
+            wait_result = wait_gitlab_release_gate(
+                connection,
+                args,
+                gitlab_wait_seconds,
+                re.compile(plan["releaseTagPattern"]),
+                planned_tag=plan["effectiveTag"],
+                source_commit=plan["sourceCommit"],
+            )
+            final_tag = plan["effectiveTag"]
+            switch_reason = ""
             gate_text = f"GitLab gate={wait_result.get('gateMode', 'pipeline')} tag={final_tag} pipeline={wait_result['pipelineId']} elapsed={wait_result.get('elapsedSeconds', 0)}s"
             if wait_result.get("gateFallbackReason"):
                 gate_text += f" fallback={wait_result['gateFallbackReason']}"
@@ -1465,6 +1653,10 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
                     "nextTag",
                     "shouldCreateTag",
                     "effectiveTag",
+                    "sourceRef",
+                    "sourceRefSource",
+                    "sourceRefLocked",
+                    "sourceBranch",
                     "sourceCommit",
                     "tagDescription",
                     "changeBaseTag",
@@ -1491,6 +1683,11 @@ def execute_publish(args: argparse.Namespace) -> dict[str, Any]:
         if not args.what_if:
             write_json_file(result_path, result)
         return result
+    except Exception as exc:
+        raise RuntimeError(
+            f"发布失败: sourceRef={plan['sourceRef']} sourceCommit={plan['sourceCommit']} "
+            f"plannedTag={plan['effectiveTag']}; {exc}"
+        ) from exc
     finally:
         if not args.what_if:
             current_lock = read_json_file(lock_path)
@@ -1521,6 +1718,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("-RepoPath", "--repo-path")
+    common.add_argument("-SourceRef", "--source-ref")
     common.add_argument("-GitLabConfigPath", "--gitlab-config-path")
     common.add_argument("-GitLabBaseUrl", "--gitlab-base-url")
     common.add_argument("-GitLabProjectId", "--gitlab-project-id")

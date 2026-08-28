@@ -61,6 +61,11 @@ def service_config(project: dict[str, Any], service: str | None) -> tuple[str, d
     return selected, services[selected]
 
 
+# Node 项目只替换构建和启动命令，继续复用既有 PID、端口和日志管理
+def is_node_project(project: dict[str, Any]) -> bool:
+    return project.get("runtime") == "node"
+
+
 def run_command(
     command: list[str],
     cwd: Path,
@@ -502,6 +507,11 @@ def command_build(
     root = Path(project["root"]).expanduser().resolve()
     print_git_freshness(root)
 
+    if is_node_project(project):
+        selected, _ = service_config(project, service_name)
+        print(f"[build] {project_name}/{selected} -> npm run lint")
+        return run_command(["npm", "run", "lint"], root, timeout_seconds=timeout_seconds)
+
     if service_name:
         selected, service = service_config(project, service_name)
         target = root / service["project"]
@@ -525,6 +535,11 @@ def command_test(
     project = project_config(config, project_name)
     root = Path(project["root"]).expanduser().resolve()
     print_git_freshness(root)
+
+    if is_node_project(project):
+        selected, _ = service_config(project, service_name)
+        print(f"[test] {project_name}/{selected} -> npm test")
+        return run_command(["npm", "test"], root, timeout_seconds=timeout_seconds)
 
     target = root / project["solution"]
     if service_name:
@@ -572,6 +587,8 @@ def command_diagnose_build(
     timeout_seconds: int | None,
 ) -> int:
     project = project_config(config, project_name)
+    if is_node_project(project):
+        raise DevToolError("diagnose-build is only available for .NET projects")
     root = Path(project["root"]).expanduser().resolve()
     print_git_freshness(root)
 
@@ -673,7 +690,10 @@ def command_run(
         print(f"[run] {project_name}/{selected} already listening pid={listener_pid} port={port}")
         return 0
 
-    build_code = build_target(root, target, restore, no_restore, stable, timeout_seconds)
+    if is_node_project(project):
+        build_code = run_command(["npm", "run", "lint"], root, timeout_seconds=timeout_seconds)
+    else:
+        build_code = build_target(root, target, restore, no_restore, stable, timeout_seconds)
     if build_code != 0:
         return build_code
 
@@ -683,11 +703,14 @@ def command_run(
     env = os.environ.copy()
     env["PWD"] = str(root)
     env.update(service.get("environment", {}))
-    command = ["dotnet", "run", "--project", str(target), "--configuration", "Debug", "--no-build"]
-    if service.get("profile"):
-        command.extend(["--launch-profile", service["profile"]])
-    elif service.get("urls"):
-        command.extend(["--urls", service["urls"]])
+    if is_node_project(project):
+        command = ["npm", "start"]
+    else:
+        command = ["dotnet", "run", "--project", str(target), "--configuration", "Debug", "--no-build"]
+        if service.get("profile"):
+            command.extend(["--launch-profile", service["profile"]])
+        elif service.get("urls"):
+            command.extend(["--urls", service["urls"]])
 
     print(f"[run] starting {project_name}/{selected}")
     print(f"[run] log={log_file}")
@@ -720,6 +743,8 @@ def command_run(
 
 def command_watch(config: dict[str, Any], project_name: str, service_name: str | None) -> int:
     project = project_config(config, project_name)
+    if is_node_project(project):
+        raise DevToolError("watch is not configured for this Node.js project")
     selected, service = service_config(project, service_name)
     root = Path(project["root"]).expanduser().resolve()
     state_root = Path(config["stateRoot"]).expanduser() / project["name"]
@@ -839,6 +864,9 @@ def command_logs(config: dict[str, Any], project_name: str, service_name: str, l
 
 def command_clean(config: dict[str, Any], project_name: str, service_name: str | None) -> int:
     project = project_config(config, project_name)
+    if is_node_project(project):
+        print(f"[clean] {project_name} has no generated build outputs")
+        return 0
     root = Path(project["root"]).expanduser().resolve()
     targets: list[Path] = []
     if service_name:

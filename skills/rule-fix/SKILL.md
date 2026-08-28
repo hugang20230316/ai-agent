@@ -36,7 +36,7 @@ Do not treat rule changes as ordinary Markdown edits. The goal is to change beha
    - Candidate rule text may be drafted internally only for review; put reasons, background, examples, and explanation in the diagnosis, not the rule body.
    - Before semantic trigger, synonym intent, reverse boundary, and output-filter review pass, do not show proposed rule text, request approval, or enter the write plan; only report coverage diagnosis, placement, or a concrete blocker.
    - Run `multi-agent-workflow` with real isolated subagents to review the proposed rule for brevity, trigger reliability, clarity, duplication, conflicts, and hardcoded incident residue.
-   - Fix and re-review blocking findings; if real isolated subagents time out or are unavailable, run a local output-filter review against the same checks before showing rule text, and mark the isolation gap.
+   - A pending review counts as not passed, and any blocking finding rejects the candidate. Do not show an edit plan or write until the revised candidate passes re-review, or the local fallback below explicitly passes when isolated review is unavailable.
 
 5. **Show the edit plan before writing**
    - Enter this step only after the candidate passes the step 4 output-filter review.
@@ -49,9 +49,7 @@ Do not treat rule changes as ordinary Markdown edits. The goal is to change beha
    - A generic "continue" only approves writing when it directly follows an exact plan; otherwise continue diagnosis or planning without edits.
 
 6. **Write the smallest rule change**
-   - Rule bodies must be concise, effective, and forceful; reject any draft that does not meet that bar.
-   - Keep rules short and reusable.
-   - Reject any rule body that includes incident background, rationale, examples, apologies, or process narration; rewrite it as one hard constraint.
+   - A rule body states one reusable constraint: keep only its trigger, required action, and the reverse boundary needed to prevent unsafe overreach; put all explanation in the diagnosis.
    - Do not write project names, one-off field names, endpoint names, people names, local paths, credentials, or tool-specific hacks into public rules.
    - If the rule belongs in a personal skill, place the source under `ai-agent/skills/<skill-name>/`; tool-side skill directories should be symlinks or config references.
 

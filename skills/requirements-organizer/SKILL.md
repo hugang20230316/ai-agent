@@ -75,6 +75,29 @@ description: 基于网页链接、原型链接、在线文档链接、设计稿�
 
 如果用户提供蓝湖、Axure、`lanhuapp.com` 或其他原型链接，并要求“补需求文档”“整理需求”“按最新原型更新文档”，必须先实际打开链接采集页面事实，再结合仓库代码补充；禁止跳过原型，只基于历史聊天、旧文档、仓库代码或记忆直接输出需求文档。
 
+### 蓝湖本机登录配置
+
+蓝湖账号、登录入口和认证 profile 属于本机私有配置，默认读取 `$CODEX_SKILL_CONFIG_DIR/requirements-organizer.local.json`；未设置该环境变量时读取 `~/.codex/local/requirements-organizer.local.json`。不要把账号密码写入需求文档、项目仓库或 skill 正文。
+
+配置示例：
+
+```json
+{
+  "lanhu": {
+    "authProfile": "lanhu",
+    "loginUrl": "https://lanhuapp.com/sso/#/main/home",
+    "username": "手机号或邮箱",
+    "password": "本机私有密码，可选；也可使用 passwordSource"
+  }
+}
+```
+
+处理 `lanhuapp.com` 链接时，如果当前浏览器没有登录态、跳到 SSO、提示重新登录或分享页权限异常，先读取上述本机配置；存在 `lanhu.authProfile` 时优先执行 `agent-browser auth login <authProfile>`，再重新打开用户给出的原型链接采集。
+
+蓝湖登录页可能是两步流程：先输入手机号或邮箱并点击登录，再进入 `scene=password` 密码页。若 `agent-browser auth login <authProfile>` 因首屏没有密码框而超时，不要判定为未配置密码；应读取本机配置中的 `lanhu.username` 和 `lanhu.password`（或 `passwordSource` 指向的环境变量），按两步流程自动登录：填账号、勾选协议、点击登录、等待密码框、填密码、点击登录，再回到原型链接采集。
+
+只有本机配置缺失、auth profile 不存在、账号密码登录后仍被平台拒绝、需要验证码/二次验证，或真实登录错误时，才把登录阻塞反馈给用户。不得因为第一次进入登录页就直接要求用户手工登录。
+
 如果用户说明原型和某个本地项目有关，或当前工作目录就是明显关联项目，先读取该项目的规则入口、目标需求目录和已有需求文档。若项目存在 `.docs/requirements-collection/profile.md`，优先按画像里的模块映射、代码锚点和输出偏好执行；没有画像时，只做本次必要判断，不为了建立画像而中断需求整理。
 
 只要当前任务已经有明确关联项目，且仓库内存在相关代码、接口契约、DTO、枚举、前端协议、消息、消费者或外部适配层，采集需求时必须做需求与现有代码对照。原型或截图负责证明“页面想要什么”，代码负责证明“当前已有、缺口、冲突和外部边界是什么”。不能只整理原型事实后把代码对照留给后续，也不能只看代码后省略页面可见事实。

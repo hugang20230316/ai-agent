@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,7 @@ from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SKILL_MD = SKILL_DIR / "SKILL.md"
+EVENT_SOURCING_REFERENCE = SKILL_DIR / "references" / "event-sourcing-investigation.md"
 FETCH_SCRIPT = SKILL_DIR / "scripts" / "fetch_zentao_bug.py"
 DIAGNOSE_SCRIPT = SKILL_DIR / "scripts" / "diagnose_bug_config.py"
 sys.path.insert(0, str(SKILL_DIR / "scripts"))
@@ -37,15 +39,37 @@ REQUIRED_PHRASES = {
     "no_login_blocker_after_success": "If fetch succeeds, do not ask the user to configure ZenTao login",
     "complete_reproduction_request": "complete request object required to reproduce the same result",
     "missing_context_blocker": "required context or identifiers are missing",
-    "output_self_check": "If any section is missing after self-check, revise the answer before sending it.",
+    "output_self_check": "revise the answer if the required default sentence or requested sections are missing.",
     "qa_summary": "`给测试的总结`",
     "reason_tester_readable": "tester/product-readable conclusion",
     "reason_not_reproduced_recovered_blocked": "not reproduced, already recovered, or evidence is blocked",
     "reason_hypotheses_under_evidence": "evidence-section hypotheses",
     "solution_first": "Lead with `解决方案`, then `给测试的总结`, then `原因` whenever there is a fix status",
-    "repair_status_summary": "repair status summary",
     "compression_keeps_sections": "Compression means each required section keeps only facts",
     "no_forced_details": "instead of forcing unrelated endpoints, fields, or code locations",
+    "async_event_workflow": "## 异步事件溯源排查",
+    "async_trigger_synonyms": "异步任务、作业、消息、回调、轮询",
+    "async_reverse_boundary": "同步请求、纯界面展示、认证或网络故障",
+    "event_reference_link": "references/event-sourcing-investigation.md",
+    "fast_online_investigation": "## Fast Online Investigation",
+    "online_environment_synonyms": "online, production, prod, live, or 正式",
+    "business_object_time_window": "business object and the smallest production time window",
+    "business_invariant_first": "Check business invariants before analyzing downstream amplification",
+    "downstream_not_root_cause": "Do not label a downstream symptom as the upstream root cause",
+    "proven_invariant_downstream_impact": "treat downstream filtering or omission as impact, not the root cause",
+    "production_sql_one_statement": "exactly one directly executable, variable-free, read-only SQL statement per turn",
+    "production_sql_no_usage": "do not add a usage explanation",
+    "missing_sql_scope_blocker": "If the safe business identifier or time window is missing, report the exact blocker and do not issue broad SQL",
+    "non_relational_source": "For logs or non-relational evidence, use the configured source instead of forcing SQL",
+    "agent_runs_read_only": "Run every other authorized read-only command yourself",
+    "stage_result_one_sentence": "one sentence that states the current hit or blocker",
+    "online_final_one_sentence": "one sentence containing the proven main cause or exact blocker",
+    "online_output_required_parts": "known downstream impact, any remaining evidence gap, and the repair or unblocking direction",
+    "no_default_artifacts": "Do not proactively create report files, reproduction scripts, or long process narratives",
+    "detailed_report_opt_in": "When the user explicitly asks for a detailed report",
+    "detailed_report_default_structure": "Use the six sections below unless the user specifies another structure",
+    "qa_no_fabricated_verification": "only verification that actually ran and any uncovered checks",
+    "facts_inference_blocker_split": "Separate verified facts, code inference, and blocked evidence",
     "live_url_test": "--live-url <known-readable-bug-url>",
     "solution_executable_action": "smallest executable action first",
     "solution_no_vague_recommendation": "Do not mix alternatives into one vague recommendation",
@@ -56,15 +80,13 @@ REQUIRED_PHRASES = {
     "tracker_first_evidence_gate": "first evidence gate before code search",
     "tracker_always_fetch_when_present": "whenever a tracker ID or URL is present",
     "tracker_not_optional": "Do not skip tracker evidence or treat it as optional",
-    "single_sql_statement": "exactly one directly executable SQL statement",
-    "no_variables_temp_tables": "Do not use variables, temporary tables, multiple result sets, or a bundled script",
+    "single_sql_statement": "exactly one directly executable, variable-free, read-only SQL statement per turn",
+    "no_variables_temp_tables": "Do not use variables, temporary tables, multiple result sets, bundled scripts, INSERT, UPDATE, DELETE, MERGE, DDL, write functions, or sensitive fields",
     "grey_only_grafana": "For grey environments, Grafana is the only data evidence source",
     "grey_no_tidb_mongodb": "Do not use TiDB or MongoDB MCP for grey data",
     "test_uses_tidb_mongodb": "When TiDB or MongoDB MCP carries the relevant logs or data evidence",
     "test_no_grafana_escalation": "Do not escalate test-environment evidence to Grafana, grey, or online sources",
-    "production_user_sql": "When production data can only be queried by the user",
-    "production_consolidate_script": "consolidate related checks into that script when practical",
-    "no_split_scripts": "Do not split into multiple scripts if one script can return the needed evidence",
+    "production_user_sql": "When production relational-database evidence can only be queried by the user",
     "write_paths_first": "scan same-class write paths first",
     "read_only_not_auto_scope": "read-only display or list paths as risks to mention, not automatic edit scope",
     "milestone_updates": "send short milestone updates",
@@ -87,9 +109,7 @@ REQUIRED_HEADINGS = [
     "`解决方案`",
     "`给测试的总结`",
     "`原因`",
-    "`接口`",
-    "`输入参数`",
-    "`输出结果`",
+    "`接口与输入输出`",
     "`证据`",
     "`归属与影响`",
 ]
@@ -117,9 +137,36 @@ def check_skill_text() -> None:
         if heading not in text:
             fail(f"missing required output heading: {heading}")
 
-    positions = [text.index(heading) for heading in REQUIRED_HEADINGS]
+    output_contract = text[text.index("Lead with `解决方案`"):]
+    positions = [output_contract.index(heading) for heading in REQUIRED_HEADINGS]
     if positions != sorted(positions):
         fail(f"required output headings are out of order: {', '.join(REQUIRED_HEADINGS)}")
+
+    fast_online = text.index("## Fast Online Investigation")
+    fix_workflow = text.index("## Fix Workflow")
+    if fast_online > fix_workflow:
+        fail("fast online investigation must precede fix workflow")
+
+    output_gate = text[text.index("## Evidence and Output Gate"):text.index("## Shared Guardrails")]
+    if output_gate.index("default final answer is one sentence") > output_gate.index("When the user explicitly asks for a detailed report"):
+        fail("online one-sentence default must precede detailed-report opt-in")
+    for legacy in [
+        "When the user's current request includes a ZenTao URL",
+        "one self-contained SQL script per request",
+        "If the user says production can run only one query",
+        "`接口`",
+        "`输入参数`",
+        "`输出结果`",
+    ]:
+        if legacy in output_gate or legacy in text[:fast_online]:
+            fail(f"legacy default contract detected: {legacy}")
+    for scope_phrase in ["For test environments", "For grey environments"]:
+        if scope_phrase not in text:
+            fail(f"non-production scope guard missing: {scope_phrase}")
+    if output_gate.count("`接口与输入输出`") != 1:
+        fail("detailed report must have one merged interface/input/output section")
+    if len([heading for heading in REQUIRED_HEADINGS if heading in output_gate]) != len(REQUIRED_HEADINGS):
+        fail("detailed report section count is incomplete")
 
     for forbidden in [
         "## Shared Output",
@@ -129,6 +176,48 @@ def check_skill_text() -> None:
             fail(f"legacy or conflicting section heading detected: {forbidden}")
 
     print("PASS: skill text contract")
+
+
+def check_event_sourcing_reference() -> None:
+    if not EVENT_SOURCING_REFERENCE.exists():
+        fail("缺少异步事件溯源排查参考文件")
+
+    text = EVENT_SOURCING_REFERENCE.read_text(encoding="utf-8")
+    required = [
+        "事件生产",
+        "消息是否投递",
+        "消费者处理",
+        "回调或后续事件",
+        "持久化写入",
+        "事件发生时间",
+        "处理时间",
+        "观测时间",
+        "当前快照",
+        "业务 ID、任务 ID、消息 ID、Trace ID、回调 ID",
+        "服务或日期分片 0 命中",
+        "部署版本、镜像标签或提交",
+        "已证实",
+        "未验证",
+        "需补证据",
+        "example.test",
+    ]
+    for phrase in required:
+        if phrase not in text:
+            fail(f"异步事件溯源参考文件缺少必要内容：{phrase}")
+
+    forbidden_patterns = [
+        (r"(?i)\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b", "真实唯一标识"),
+        (r"\b(?:10|172|192)\.(?:\d+\.){2}\d+\b", "私有 IPv4 地址"),
+        (r"(?i)\b(?:localhost|[^\s/]+\.(?:internal|corp|local))\b", "内网主机名"),
+        (r"(?i)(?:\b(?:[0-9a-f]{1,4}:){2,}[0-9a-f:]*\b)", "IPv6 地址"),
+        (r"(?:/Users/|/private/|/tmp/|/home/)[^\s`]+", "绝对路径"),
+        (r"(?i)\b(?:token|password|cookie|secret)\s*[:=]", "凭据赋值"),
+    ]
+    for pattern, label in forbidden_patterns:
+        if re.search(pattern, text):
+            fail(f"异步事件溯源参考文件包含禁止的敏感残留：{label}")
+
+    print("通过：异步事件溯源参考文件契约")
 
 
 def check_local_config() -> None:
@@ -284,6 +373,7 @@ def check_live_fetch(live_bug: str, live_url: str) -> None:
 def main() -> None:
     args = parse_args()
     check_skill_text()
+    check_event_sourcing_reference()
     check_credential_config_contract()
     check_project_group_contract()
     check_local_config()

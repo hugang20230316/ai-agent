@@ -1,6 +1,6 @@
 ---
 name: bug
-description: "Analyze and fix issue-tracker bugs from a configured tracker such as ZenTao. Use when the user provides a bug ID, issue URL, screenshot, reproduction note, or asks to analyze/fix a bug."
+description: "当用户提供缺陷编号、问题链接、截图、复现说明或报错信息，或要求分析、定位、修复缺陷时使用。"
 ---
 
 # Bug
@@ -52,12 +52,11 @@ When a tracker URL or bug ID is present:
 4. Trace the shortest request chain that can prove the source by data timeline: visible symptom -> frontend/rendering entry -> service/API endpoint -> persisted data/logs -> upstream API -> first bad output, first bad transform, or blocked evidence.
 5. Query only the minimum data source needed to prove the root cause. Use configured MCP tools, logs, database queries, API calls, or read-only CLI checks when they are the direct evidence source.
    - If the user asks to check logs or runtime evidence without naming an environment, treat the target as the test environment by default.
-   - For test environments, use the configured or known test-environment data source first. When TiDB or MongoDB MCP carries the relevant logs or data evidence, discover and execute the matching MCP query before any same-environment read-only fallback; record the MCP failure reason when blocked. Do not escalate test-environment evidence to Grafana, grey, or online sources unless the user names that source or project evidence confirms that environment.
+   - For test environments, use the configured or known test-environment data source first. When TiDB or MongoDB MCP carries the relevant logs or data evidence, discover and execute the matching MCP query before any same-environment read-only fallback; record the MCP failure reason when blocked. Do not escalate test-environment evidence to Grafana, grey, or online sources unless the user explicitly changes the target environment or project evidence confirms that environment.
    - For grey environments, Grafana is the only data evidence source when data lookup is needed. Do not use TiDB or MongoDB MCP for grey data.
    - When the user names online, production, or online-equivalent environments, do not call a database MCP unless it is proven to map to that environment; if production data can only be queried by the user, provide SQL and wait for the result.
    - For online or production logs, use Grafana when log evidence is needed; if production data can only be queried by the user, follow the production SQL rules below.
-   - When production data can only be queried by the user, provide one self-contained SQL script per request and consolidate related checks into that script when practical. Do not split into multiple scripts if one script can return the needed evidence.
-   - If the user says production can run only one query or one statement at a time, provide exactly one directly executable SQL statement. Do not use variables, temporary tables, multiple result sets, or a bundled script. Wait for the result before giving the next statement.
+   - When production relational-database evidence can only be queried by the user, stop at that evidence stage and provide exactly one directly executable, variable-free, read-only SQL statement per turn, limited to the business object and time window under investigation; wait for the result before continuing. If the safe business identifier or time window is missing, report the exact blocker and do not issue broad SQL. For logs or non-relational evidence, use the configured source instead of forcing SQL. Do not use variables, temporary tables, multiple result sets, bundled scripts, INSERT, UPDATE, DELETE, MERGE, DDL, write functions, or sensitive fields; do not add a usage explanation.
 6. Do not call an API just because a URL exists. If code, logs, database rows, or user-provided response data already prove the point, avoid extra API calls. If API evidence is needed and a project API/services/upstream base URL is configured, choose the matching configured layer instead of browser/front-end routes that may disturb other users.
    - Before calling a project endpoint, confirm the target layer and authentication/context contract from local config or project rules.
    - Confirm the current layer contract before calling an endpoint. Fields added by another layer from login state, gateway context, or user tickets do not automatically exist on the target layer.
@@ -67,6 +66,30 @@ When a tracker URL or bug ID is present:
 8. Classify the issue as code defect, data issue, configuration issue, external dependency, frontend/UI ownership, or blocked evidence.
 9. If the user needs to inspect a complete API response, save the raw response outside the target repo and, when a browser preview is useful, serve a read-only static view from a temp directory. Verify the preview page and its dependent JSON/resources before giving the link.
 10. During long investigations, send short milestone updates after tracker fetch, missing-evidence requests, code-location discovery, fix-scope decisions, and verification. Do not leave the user guessing whether the work is stalled.
+
+## 异步事件溯源排查
+
+当问题语义涉及异步任务、作业、消息、回调、轮询、最终一致、延迟持久化、重试、重复投递或乱序处理时，使用本流程，不要求用户必须使用这些固定词语。同步请求、纯界面展示、认证或网络故障、单库静态数据问题不要启动本流程，除非后续代码或运行证据显示存在异步边界。
+
+触发后：
+
+1. 先阅读 [references/event-sourcing-investigation.md](references/event-sourcing-investigation.md)，按“事件生产 -> 消息投递 -> 消费者处理 -> 回调或后续事件 -> 持久化写入 -> 用户可见读取”重建时间线。这是一种排查方法，不表示系统一定存在不可变事件存储。
+2. 对每一跳记录服务或日志源、业务标识，以及实际存在的任务/消息/Trace/回调标识、事件发生时间、处理时间、观测时间、输入输出变化和证据状态。逐跳映射标识；存在并发运行、租户、重试或重复消息时，不能只按业务标识关联。
+3. 将历史证据与当前可变快照分开。当前记录、成功重试或空队列不能抹去之前的删除、失败或延迟消息；必须注明每个观察结果对应的时间和来源。
+4. 使用当前代码解释历史行为前，先把日志时间窗与部署版本（提交、镜像标签或发布版本）绑定。无法绑定时报告证据缺口，不得下版本特定的根因结论。
+5. 将查询 0 命中视为有范围限定的结果。宣称没有证据前，先检查服务或日志源、日期分片或集合、环境和时间窗映射；查错源或查错日期是证据阻塞，不是没有事件的证明。
+6. 按参考文件逐项回答固定问题和状态字段，同时遵守现有的环境数据源、生产 SQL、最小数据量和默认不创建事故文件规则。
+
+## Fast Online Investigation
+
+When the user explicitly names an online, production, prod, live, or 正式 environment (or project evidence confirms it), use this short path unless the user requests a detailed report:
+
+1. Locate the business object and the smallest production time window.
+2. Check business invariants before analyzing downstream amplification. If an invariant is abnormal, trace upstream by data timeline to the first bad output, bad transform, or permission/evidence blocker. Reading an interface contract needed to define the invariant or confirm a transform is part of this step.
+3. After the root-cause boundary is proven or blocked, inspect API and display/filter code only to explain how the downstream symptom was amplified. If an upstream invariant violation is proven, treat downstream filtering or omission as impact, not the root cause. Do not label a downstream symptom as the upstream root cause.
+4. Run every other authorized read-only command yourself. Query only one minimum, independently observable source for the current evidence stage at a time. If it has no hit, is unavailable, or requires user permissions, record that blocker and request the next necessary evidence; do not broaden the search or continue dependent inference.
+5. Keep each stage result to one sentence that states the current hit or blocker. Stop naturally once cause, downstream impact, evidence gap, and repair or unblocking direction are all explicit; do not fill a missing stage with a hypothesis.
+6. Do not proactively create report files, reproduction scripts, or long process narratives. Create a named artifact only when the user explicitly asks for it.
 
 ## Fix Workflow
 
@@ -97,27 +120,29 @@ python3 scripts/test_bug_skill_contract.py --live-bug <known-readable-bug-id>
 python3 scripts/test_bug_skill_contract.py --live-url <known-readable-bug-url>
 ```
 
-The checks cover local login config loading, required output sections, reproduction-input wording, and ZenTao bug ID/URL fetch behavior without inline credentials.
+这些检查覆盖本机登录配置、必需输出章节、复现输入说明、异步事件溯源参考文件及其脱敏边界，以及不带内联凭据的禅道缺陷编号/链接抓取行为。
 
 Keep bug-skill-specific test notes, fixtures, and cleanup guidance under this skill directory so they can be found and removed with the skill.
 
 ## Evidence and Output Gate
 
-Before sending a bug analysis final answer, repair status summary, handoff, or complete conclusion, self-check that the answer contains these sections. Keep the heading even when blocked, and write the exact blocker under it.
-Lead with `解决方案`, then `给测试的总结`, then `原因` whenever there is a fix status, fix recommendation, or next action. Compression means each required section keeps only facts that justify or verify that solution, or states the exact blocker; when a required section has no additional actionable detail, say "无额外信息" or the specific missing evidence instead of forcing unrelated endpoints, fields, or code locations. Omit inspected endpoints, tables, fields, or code locations unless they change the action or the user asks for a full handoff report.
+Before sending a bug analysis final answer, repair status summary, handoff, or complete conclusion, use the standard structured output below. For a normal follow-up, answer only the question asked; if the follow-up explicitly asks for cause, evidence, status, or a complete conclusion, include the corresponding fields instead of collapsing the answer to one sentence.
+
+The default final answer is one sentence containing the proven main cause or exact blocker, known downstream impact, any remaining evidence gap, and the repair or unblocking direction.
+For a detailed report with fix status or a next action, retain the remaining evidence fields below unless the user specifies another structure.
+When the user explicitly asks for a detailed report, Use the six sections below unless the user specifies another structure.
+Lead with `解决方案`, then `给测试的总结`, then `原因` whenever there is a fix status.
+Compression means each required section keeps only facts that justify or verify the action, instead of forcing unrelated endpoints, fields, or code locations into the answer.
+For an online investigation, the first summary sentence should contain the proven main cause or exact blocker, known downstream impact, any remaining evidence gap, and the repair or unblocking direction; the structured fields remain the authoritative detail.
 
 1. `解决方案`: state whether code was changed and give the smallest executable action first. Separate immediate workaround, code fix, data repair, read-side fallback, and verification when more than one applies. Do not mix alternatives into one vague recommendation, and do not imply existing bad data is repaired unless a migration, repair script, or read-side compatibility path was actually added.
-2. `给测试的总结`: write concise QA notes from the tester's product surface, usually App, mini program, web page, or admin UI click paths. Do not make API names, database tables, log systems, class names, or method names the reproduction entry unless the user explicitly asks for interface/API regression. Include expected/actual, impact, and 1-3 regression points directly tied to this bug. Do not add generic smoke tests.
-3. `原因`: start with one tester/product-readable conclusion, then separate the visible symptom, the direct trigger, and the proven root cause when they differ. If a defect is proven, state the first bad output, first bad transform, or exact code defect. If the issue is not reproduced, already recovered, or evidence is blocked, state that status and blocker first; unproven explanations must be marked as evidence-section hypotheses and must not replace the reason. Do not use "大概率/应该是/可能是" as the conclusion. When similarly named fields, enum values, or parameters have conflicting meanings across interfaces, base the conclusion on the current interface contract and measured data; other contracts may only be cited as conflict evidence.
-4. `接口`: list only distinct boundaries that matter: user-facing route/API, service-layer endpoint or method, upstream endpoint if actually called. Do not split "对外接口/服务接口/代码位置" into redundant headings when they describe the same boundary.
-5. `输入参数`: include all fields needed to reproduce the same result, including required context or identifiers when the interface requires them. Mask only true secrets.
-6. `输出结果`: include the actual response status/message/data excerpt and the expected response or contract.
-7. `证据`: cite tracker content, code location, database/log/API evidence, and what each piece proves. Separate verified facts, code inference, and blocked evidence.
-8. `归属与影响`: classify as code defect, data issue, configuration issue, external dependency, frontend/UI ownership, or blocked evidence; include affected data shape or workflow.
+2. `给测试的总结`: write concise tester/product-readable notes from the product surface, including expected/actual, impact, and only verification that actually ran and any uncovered checks. Do not turn an API, database, log system, class, or method into a product reproduction entry unless interface/API regression is requested.
+3. `原因`: start with one tester/product-readable conclusion, then separate the visible symptom, the direct trigger, and the proven root cause when they differ. If the issue is not reproduced, already recovered, or evidence is blocked, state that status and blocker first; unproven explanations must be marked as evidence-section hypotheses and must not replace the reason. Do not use "大概率/应该是/可能是" as the conclusion. For conflicting field, enum, or parameter meanings, base the conclusion on the current interface contract and measured data.
+4. `接口与输入输出`: within this section, list only distinct boundaries that matter, then include all non-secret input fields/context needed to reproduce the result and the actual response status/message/data with its expected contract.
+5. `证据`: cite tracker content, code location, database/log/API evidence, and what each piece proves. Separate verified facts, code inference, and blocked evidence.
+6. `归属与影响`: classify as code defect, data issue, configuration issue, external dependency, frontend/UI ownership, or blocked evidence; include affected data shape or workflow.
 
-If any section is missing after self-check, revise the answer before sending it.
-
-This full section set is for final bug reports, repair status summaries, handoffs, or when the user asks for a complete conclusion. For normal follow-up questions during the same investigation, answer only the question asked and omit unrelated sections such as QA notes unless the user explicitly requests them.
+If a requested detailed report has a different structure, follow that explicit request while retaining the fact/inference/blocker separation. Otherwise, revise the answer if the required default sentence or requested sections are missing.
 
 ## Shared Guardrails
 

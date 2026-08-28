@@ -1,11 +1,11 @@
 ---
 name: dev-tool
-description: Local development CLI for configured .NET projects. Use when the user asks Codex to build, compile, test, start, stop, restart, inspect status, view logs, or locally debug a configured .NET project; also use when the user explicitly mentions dev-tool or wants local debugging to use the configured dev-tool workflow instead of ad hoc dotnet commands.
+description: Local development CLI for configured .NET and Node.js projects. Use when the user asks Codex to build, compile, test, start, stop, restart, inspect status, view logs, or locally debug a configured project; also use when the user explicitly mentions dev-tool or wants local debugging to use the configured dev-tool workflow instead of ad hoc commands.
 ---
 
 # dev-tool
 
-Use `dev-tool` as the default local workflow for configured .NET projects.
+Use `dev-tool` as the default local workflow for configured .NET and Node.js projects.
 
 ## Command Entry
 
@@ -32,6 +32,8 @@ Do not require a project-local `dev-tool.json`. Machine-specific project config 
 | Status | `dev-tool status [project]` |
 | Logs | `dev-tool logs <project> <service> [lines]` |
 | Clean build outputs | `dev-tool clean <project> [service]` |
+
+For a configured Node.js project, `build` runs `npm run lint`, `test` runs `npm test`, and `run/restart` runs `npm start` after lint succeeds. Node projects do not use `dotnet clean`, `watch`, or `diagnose-build`.
 
 `start` is accepted as an alias for `run`.
 
@@ -67,13 +69,14 @@ Use `dev-tool watch <project> <service>` for the hot local edit loop. Watch mode
 
 ## Required Workflow
 
-1. Resolve the project and service from the user request. If omitted and only one project is relevant, use that project.
+1. Resolve the project and service from the user request and private project configuration. If omitted and only one project is relevant, use that project; do not infer a service's source root from a similarly named repository.
 2. Use the command mapping above. Prefer `dev-tool` over direct `dotnet` for configured projects.
-3. Read the command output and exit code before reporting status.
-4. For build/start/restart, include the git freshness summary from `dev-tool`; do not auto-pull code.
-5. If the command fails, report the failing command, exit code, and the key error lines.
-6. Do same-scope speed comparisons against the default command users actually run, not against `--restore` or other troubleshooting flags.
-7. If this turn changed code and a build succeeds, run the normal `review-coding` gate before final completion.
+3. Run `build`, `test`, and `diagnose-build` in the foreground with the execution tool's wait window set to at least 30 seconds and pass `--timeout 30`. Never use a short wait to move these commands into the background intentionally. If the execution tool still returns a running handle, observe it immediately under the bounded wait rules and never leave it unattended.
+4. Read the command output and exit code before reporting status.
+5. For build/start/restart, include the git freshness summary from `dev-tool`; do not auto-pull code.
+6. If the command fails, report the failing command, exit code, and the key error lines.
+7. Do same-scope speed comparisons against the default command users actually run, not against `--restore` or other troubleshooting flags.
+8. If this turn changed code and a build succeeds, run the normal `review-coding` gate before final completion.
 
 ## Output Contract
 

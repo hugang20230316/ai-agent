@@ -21,8 +21,8 @@ Project-specific app mappings, business identifiers, log patterns, call chains, 
 ## Shared Workflow
 
 1. Use this skill only for online or grey-release problem investigation.
-2. Default runtime investigation uses the project's test-environment evidence path and configured data/log sources, such as MongoDB or TiDB MCP when they are the direct evidence source.
-3. Do not use Grafana for requests outside online or grey-release problem investigation. A generic request to check logs is not enough; the user or project evidence must name Grafana, grey release, online, production, dashboard, or Explore.
+2. Select environment-bound sources only after confirming the target environment from user scope, project configuration, or runtime evidence. Test targets stay on the project's test evidence path; online and grey targets use their confirmed matching sources. Grafana must not substitute evidence across environments.
+3. Do not use Grafana unless the user explicitly targets grey release, online, or production, or project configuration or runtime evidence confirms that environment. Log investigation, investigation authorization, business identifiers, and Grafana, Dashboard, or Explore names alone are not environment evidence; when the gate is unmet, stay on the test environment and its configured evidence path.
 4. Reuse a persisted local login/session before asking the user for credentials.
 5. Prefer Grafana HTTP/API query paths over page scraping.
 6. Use browser automation only for login refresh or configured view fallback through the unified Python entry point.
@@ -34,6 +34,8 @@ Project-specific app mappings, business identifiers, log patterns, call chains, 
 9. When the user asks whether evidence has been obtained, answer that first with "got it" or "not got it"; do not explain hypotheses before stating evidence status.
 10. When a failed downstream call is logged but the overall user flow later succeeds, check whether the success/fallback path logs input and output. If it does not, state that the successful downstream request cannot be proven from Grafana alone.
 11. For environment-sensitive issues, always record the actual evidence source, scope, time window, request URL or service route used for the evidence. Do not substitute a different environment or observability layer without explicit user direction.
+12. Grey-release investigations follow the same authentication, least-privilege, read-only, side-effect, and evidence rules as online investigations. Verify deployment, data-source mapping, and authorization separately; do not assume shared or isolated storage, and do not reuse unauthorized credentials.
+13. If the configured wrapper, session recovery, and same-source read-only datasource fallback all fail, stop the dependent investigation and report the exact evidence blocker to the user. Request raw logs for log evidence, or one direct SQL statement only when the missing evidence is a production relational database; do not silently skip the source or switch environments.
 
 ## Shared Guardrails
 

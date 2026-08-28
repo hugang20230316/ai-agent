@@ -37,7 +37,7 @@
 - 代码创建、修改、审阅、解释、重构、命名、注释、私有辅助方法：读取 `@rules/coding-rules.md`。
 - 测试、验证、修复完成声明、回归检查、质量结论：读取 `@rules/testing-rules.md`。
 - 涉及长任务、多阶段排查、未完成收口、上下文压力或 `/compact` 时，必须同时读取 `@rules/long-task-rules.md`、`@rules/communication-rules.md` 和 `@rules/testing-rules.md`。
-- Skill、插件、工具触发、推荐、筛选、修改边界：读取 `@rules/skill-rules.md`。
+- Skill、插件、工具触发、推荐、筛选、修改边界：在选定、宣告、加载或调用具体 skill 前读取 `@rules/skill-rules.md`；环境专属 skill 还必须先通过该文件规定的环境判定门禁。
 - 涉及规则没命中、同类错误复发、规则硬编码、规则分类混乱、规则热修、规则纠偏或验证规则是否生效时，必须同时读取 `@rules/communication-rules.md`、`@rules/project-governance.md`、`@rules/testing-rules.md` 和 `@rules/coding-rules.md`；若还涉及记录、候选或 Obsidian 证据，再读取 `@rules/personal-knowledge-rules.md`。
 - 上述规则问题按 `rule-fix` 执行。
 - 工具输出、命令结果、日志、数据源查询、接口请求、联调参数、请求/响应比对：读取 `@rules/evidence-output-rules.md`。
